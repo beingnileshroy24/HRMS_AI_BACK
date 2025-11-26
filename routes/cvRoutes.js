@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { extractCVData, generateFormattedCV } from "../controllers/cvController.js";
+import { extractCVData, generateFormattedCV, processCVWithTemplate } from "../controllers/cvController.js";
 
 const router = express.Router();
 
@@ -23,8 +23,14 @@ const upload = multer({
   }
 });
 
+const uploadFields = upload.fields([
+  { name: 'cv', maxCount: 1 },       // The Resume PDF to extract data FROM
+  { name: 'template', maxCount: 1 }  // The Word Doc to inject data INTO
+]);
+
 // CV Extraction & Generation endpoints
 router.post("/extract", upload.single("cv"), extractCVData);
 router.post("/generate-cv", generateFormattedCV);
+router.post("/process-with-template", uploadFields, processCVWithTemplate);
 
 export default router;

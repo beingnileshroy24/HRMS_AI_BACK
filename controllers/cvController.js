@@ -2,6 +2,7 @@ import fs from "fs";
 import { extractText } from "../utils/extractText.js";
 import { createTemplatePdf } from "../utils/createTemplatePdf.js";
 import { geminiVisionParser } from "../utils/geminiVisionParser.js";
+import { fillDocxTemplate } from "../utils/docxMerger.js";
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -78,6 +79,63 @@ export const extractCVData = async (req, res) => {
     return res.status(500).json({
       error: `Gemini Vision parsing failed: ${err.message}`,
     });
+  }
+};
+
+export const processCVWithTemplate = async (req, res) => {
+  let cvPath = null;
+  let templatePath = null;
+
+  try {
+    // 1. Validation
+    if (!req.files || !req.files['cv'] || !req.files['template']) {
+      return res.status(400).json({ error: "Please upload both 'cv' (PDF) and 'template' (DOCX)" });
+    }
+
+    const cvFile = req.files['cv'][0];
+    const templateFile = req.files['template'][0];
+
+    cvPath = cvFile.path;
+    templatePath = templateFile.path;
+
+    console.log(`Processing CV: ${cvFile.originalname} with Template: ${templateFile.originalname}`);
+
+    // 2. Extract Data using Gemini (Reusing your existing logic)
+    const fileBuffer = fs.readFileSync(cvPath);
+    let extractedData;
+
+    // Determine strategy based on file type
+    if (cvFile.mimetype.includes("pdf")) {
+       extractedData = await geminiVisionParser.parsePDFWithVision(fileBuffer, cvFile.originalname);
+    } else if (cvFile.mimetype.includes("image")) {
+       extractedData = await geminiVisionParser.parseImageWithVision(fileBuffer, cvFile.mimetype, cvFile.originalname);
+    } else {
+       // Fallback for text extraction if you have it implemented
+       throw new Error("For template processing, please upload a PDF or Image CV.");
+    }
+    
+    console.log("✅ Data Extracted. Injecting into template...");
+
+    // 3. Inject Data into Template
+    const filledDocxBuffer = fillDocxTemplate(templatePath, extractedData);
+
+    // 4. Cleanup Files
+    if (fs.existsSync(cvPath)) fs.unlinkSync(cvPath);
+    if (fs.existsSync(templatePath)) fs.unlinkSync(templatePath);
+
+    // 5. Send back the generated file
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename=Generated_CV_${Date.now()}.docx`);
+    
+    return res.send(filledDocxBuffer);
+
+  } catch (error) {
+    // Cleanup on error
+    if (cvPath && fs.existsSync(cvPath)) fs.unlinkSync(cvPath);
+    if (templatePath && fs.existsSync(templatePath)) fs.unlinkSync(templatePath);
+
+    console.error("❌ Template Processing Error:", error);
+    return res.status(500).json({ error: error.message });
   }
 };
 
