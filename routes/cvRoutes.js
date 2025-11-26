@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { extractCVData, generateFormattedCV, processCVWithTemplate } from "../controllers/cvController.js";
+import { extractCVData, generateFormattedCV, processCVWithTemplate, evaluateCVQuality } from "../controllers/cvController.js";
 
 const router = express.Router();
 
@@ -32,5 +32,6 @@ const uploadFields = upload.fields([
 router.post("/extract", upload.single("cv"), extractCVData);
 router.post("/generate-cv", generateFormattedCV);
 router.post("/process-with-template", uploadFields, processCVWithTemplate);
+router.post("/evaluate", evaluateCVQuality);
 
 export default router;

@@ -172,3 +172,24 @@ export const generateFormattedCV = async (req, res) => {
     });
   }
 };
+
+
+export const evaluateCVQuality = async (req, res) => {
+  try {
+    const { extractedData } = req.body;
+
+    if (!extractedData) {
+      return res.status(400).json({ error: "No extracted data provided for analysis" });
+    }
+
+    console.log("🤔 Analyzing CV Quality...");
+    const evaluation = await geminiVisionParser.evaluateCV(extractedData);
+
+    console.log("✅ CV Scored Successfully:", evaluation.overall_score);
+    res.json({ success: true, evaluation });
+
+  } catch (err) {
+    console.error("❌ Evaluation error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};

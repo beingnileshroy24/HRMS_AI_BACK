@@ -342,6 +342,79 @@ Return valid JSON only with personal_info, skills, experience, education, etc.
     const result = await model.generateContent(prompt);
     return result.response.text();
   }
+
+  // ... existing imports and class setup ...
+
+  // ADD THIS NEW METHOD TO THE CLASS
+  // Add this inside your GeminiVisionCVParser class
+
+  async evaluateCV(extractedData) {
+    try {
+      console.log('📊 Evaluating CV Quality...');
+      const model = this.getModel("gemini-2.5-pro");
+
+      const prompt = `
+You are an expert ATS (Applicant Tracking System) and Senior HR Recruiter. 
+Analyze the following parsed resume data and provide a performance score.
+
+RESUME DATA:
+${JSON.stringify(extractedData)}
+
+SCORING CRITERIA (0-100):
+1. Impact (Do descriptions use numbers, metrics, and action verbs?)
+2. Skills Match (Are technical and soft skills clearly defined?)
+3. Completeness (Are all key sections present and detailed?)
+4. Clarity (Is the structure logical and easy to read?)
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object (no markdown, no extra text) with this structure:
+{
+  "overall_score": 85,
+  "breakdown": {
+    "impact": 80,
+    "skills": 90,
+    "completeness": 95,
+    "clarity": 75
+  },
+  "strengths": ["Strong technical skills listed", "Good use of action verbs"],
+  "weaknesses": ["Summary is too vague", "Work experience lacks quantitative metrics"],
+  "improvement_tips": ["Add numbers to your project descriptions (e.g., 'Increased revenue by 20%')", "Tailor your summary to specific job roles"]
+}
+`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // ✨ CRITICAL FIX: Parse JSON manually instead of using this.parseVisionResponse()
+      let cleanedText = text.trim();
+      // Remove markdown code blocks if present
+      cleanedText = cleanedText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      
+      // Extract valid JSON substring
+      const jsonStart = cleanedText.indexOf('{');
+      const jsonEnd = cleanedText.lastIndexOf('}') + 1;
+      
+      if (jsonStart === -1) throw new Error("No JSON found in response");
+      
+      const jsonStr = cleanedText.substring(jsonStart, jsonEnd);
+      
+      // Return the raw scoring object
+      return JSON.parse(jsonStr);
+
+    } catch (error) {
+      console.error('❌ CV Evaluation error:', error);
+      // Return a fallback object so the UI doesn't crash
+      return {
+        overall_score: 0,
+        breakdown: { impact: 0, skills: 0, completeness: 0, clarity: 0 },
+        strengths: ["Could not analyze CV"],
+        weaknesses: [error.message],
+        improvement_tips: ["Try uploading the file again"]
+      };
+    }
+  }
+// ...
 }
 
 // Export singleton without passing the key
