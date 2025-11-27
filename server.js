@@ -2,11 +2,14 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import cvRoutes from "./routes/cvRoutes.js";
+import brandingRoutes from './routes/brandingRoutes.js';
 
 // Load environment variables first
 dotenv.config();
 
 const app = express();
+
+app.use('/api/branding', brandingRoutes);
 
 // CORS configuration
 app.use(cors({

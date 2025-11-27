@@ -63,7 +63,7 @@ export const extractCVData = async (req, res) => {
     }
 
     // Return extracted data
-    res.json({
+    res.status(200).json({
       success: true,
       extracted_data: extractedData,
       parser_used: "gemini_vision",
