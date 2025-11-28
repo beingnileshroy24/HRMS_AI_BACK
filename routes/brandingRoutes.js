@@ -4,7 +4,8 @@ import multer from "multer";
 import { 
   generateBrandedCV, 
   testLogoPDF,
-  checkFiles
+  checkFiles,
+    getDebugInfo
 } from "../controllers/brandingController.js";
 
 const router = express.Router();
@@ -43,5 +44,7 @@ router.post("/generate-branded-cv",
 // Test endpoints
 router.get("/test-logo", testLogoPDF);
 router.get("/check-files", checkFiles);
+// In routes/brandingRoutes.js, add:
+router.get("/debug", getDebugInfo);
 
 export default router;

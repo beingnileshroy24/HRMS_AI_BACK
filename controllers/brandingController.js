@@ -12,9 +12,8 @@ export const generateBrandedCV = async (req, res) => {
   let logoFilePath = null;
 
   try {
-    console.log("🎨 Starting simple branding process...");
+    console.log("🎨 Starting branding process with logo watermark...");
     
-    // Check if files were uploaded
     if (!req.files || !req.files['cv']) {
       return res.status(400).json({ error: "No CV file uploaded" });
     }
@@ -32,7 +31,7 @@ export const generateBrandedCV = async (req, res) => {
       watermarkText = 'CONFIDENTIAL' 
     } = req.body;
 
-    // If logo is uploaded, save the path
+    // Handle logo file
     if (logoFile) {
       logoFilePath = logoFile.path;
       console.log(`🖼️ Using uploaded logo: ${logoFile.originalname}`);
@@ -40,11 +39,16 @@ export const generateBrandedCV = async (req, res) => {
       console.log('ℹ️ No logo uploaded, will use default logo');
       // Use absolute path to default logo
       logoFilePath = path.join(process.cwd(), 'public', 'Nexu Revised 6.png');
+      
+      if (!fs.existsSync(logoFilePath)) {
+        console.warn('⚠️ Default logo not found, will use text watermark only');
+        logoFilePath = null;
+      }
     }
 
     // Generate branded PDF
-    console.log("🔄 Creating branded PDF...");
-    const pdfBuffer = await createSimpleBrandedPdf(
+    console.log("🔄 Creating branded PDF with logo watermark...");
+    const pdfBuffer = await createBrandedPdfWithLogoWatermark(
       cvFilePath,
       logoFilePath,
       addWatermark === 'true',
@@ -90,12 +94,11 @@ export const generateBrandedCV = async (req, res) => {
   }
 };
 
-// SIMPLE VERSION - Just add branding to existing PDF
-const createSimpleBrandedPdf = async (cvFilePath, logoFilePath = null, addWatermark = true, watermarkText = "CONFIDENTIAL") => {
+// UPDATED: Now includes logo as watermark
+const createBrandedPdfWithLogoWatermark = async (cvFilePath, logoFilePath = null, addWatermark = true, watermarkText = "CONFIDENTIAL") => {
   try {
     console.log("📥 Loading existing PDF...");
     
-    // Check if CV file exists and is readable
     if (!fs.existsSync(cvFilePath)) {
       throw new Error("CV file not found");
     }
@@ -116,31 +119,48 @@ const createSimpleBrandedPdf = async (cvFilePath, logoFilePath = null, addWaterm
     
     console.log(`📑 Found ${pages.length} page(s) in the PDF`);
     
-    // Add logo and watermark to each page
+    // Load logo image once for reuse
+    let logoImage = null;
+    if (logoFilePath && fs.existsSync(logoFilePath)) {
+      try {
+        logoImage = await loadLogoImage(pdfDoc, logoFilePath);
+        console.log("✅ Logo loaded successfully for watermarking");
+      } catch (logoError) {
+        console.warn("⚠️ Could not load logo for watermark:", logoError.message);
+      }
+    }
+    
+    // Add branding to each page
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       const { width, height } = page.getSize();
       
       console.log(`🔄 Processing page ${i + 1} (${width}x${height})...`);
       
-      // Add logo to top right if provided
-      if (logoFilePath) {
+      // Add logo to top right
+      if (logoImage) {
         try {
-          const logoAdded = await addLogoToPage(pdfDoc, page, logoFilePath);
-          if (logoAdded) {
-            console.log(`✅ Logo added to page ${i + 1}`);
-          } else {
-            console.log(`⚠️ Logo not added to page ${i + 1}`);
-          }
+          await addLogoToTopRight(page, logoImage);
+          console.log(`✅ Top-right logo added to page ${i + 1}`);
         } catch (logoError) {
-          console.warn(`⚠️ Could not add logo to page ${i + 1}:`, logoError.message);
+          console.warn(`⚠️ Could not add top-right logo to page ${i + 1}:`, logoError.message);
         }
       }
       
-      // Add watermark if enabled
+      // Add logo as watermark (background)
+      if (addWatermark && logoImage) {
+        try {
+          await addLogoWatermark(page, logoImage, width, height);
+          console.log(`✅ Logo watermark added to page ${i + 1}`);
+        } catch (watermarkError) {
+          console.warn(`⚠️ Could not add logo watermark to page ${i + 1}:`, watermarkError.message);
+        }
+      }
+      
+      // Add text watermark as fallback or additional
       if (addWatermark) {
-        addWatermarkToPage(page, watermarkText, width, height);
-        console.log(`✅ Watermark added to page ${i + 1}`);
+        addTextWatermark(page, watermarkText, width, height);
+        console.log(`✅ Text watermark added to page ${i + 1}`);
       }
     }
 
@@ -148,8 +168,6 @@ const createSimpleBrandedPdf = async (cvFilePath, logoFilePath = null, addWaterm
 
     // Serialize the PDF to bytes
     const pdfBytes = await pdfDoc.save();
-    
-    // Convert Uint8Array to Buffer for proper response
     const pdfBuffer = Buffer.from(pdfBytes);
     
     console.log("✅ PDF serialized successfully, final size:", pdfBuffer.length, "bytes");
@@ -157,321 +175,253 @@ const createSimpleBrandedPdf = async (cvFilePath, logoFilePath = null, addWaterm
     return pdfBuffer;
 
   } catch (error) {
-    console.error("❌ Error in simple branding:", error);
+    console.error("❌ Error in branding with logo watermark:", error);
     throw new Error(`Failed to brand PDF: ${error.message}`);
   }
 };
 
-const addLogoToPage = async (pdfDoc, page, logoFilePath) => {
+// NEW: Load logo image once for reuse
+const loadLogoImage = async (pdfDoc, logoFilePath) => {
   try {
-    console.log(`🖼️ Attempting to load logo from: ${logoFilePath}`);
+    console.log(`🖼️ Loading logo from: ${logoFilePath}`);
     
-    // Check if logo file exists
-    if (!fs.existsSync(logoFilePath)) {
-      console.warn(`⚠️ Logo file not found at: ${logoFilePath}`);
-      
-      // Try to find the logo in different locations
-      const possiblePaths = [
-        logoFilePath,
-        path.join(process.cwd(), 'public', 'Nexu Revised 6.png'),
-        path.join(process.cwd(), 'Nexu Revised 6.png'),
-        path.join(__dirname, '..', 'public', 'Nexu Revised 6.png'),
-        path.join(__dirname, '..', '..', 'public', 'Nexu Revised 6.png'),
-        path.join(__dirname, '..', '..', '..', 'public', 'Nexu Revised 6.png'),
-      ];
-      
-      let foundPath = null;
-      for (const testPath of possiblePaths) {
-        console.log(`🔍 Checking: ${testPath}`);
-        if (fs.existsSync(testPath)) {
-          foundPath = testPath;
-          console.log(`✅ Found logo at: ${testPath}`);
-          break;
-        }
-      }
-      
-      if (!foundPath) {
-        console.error('❌ Logo not found in any location');
-        // Create a placeholder rectangle instead of logo
-        page.drawRectangle({
-          x: page.getWidth() - 130,
-          y: page.getHeight() - 130,
-          width: 80,
-          height: 80,
-          color: rgb(0.9, 0.1, 0.1),
-          opacity: 0.3,
-        });
-        
-        page.drawText('LOGO AREA', {
-          x: page.getWidth() - 125,
-          y: page.getHeight() - 80,
-          size: 10,
-          color: rgb(0, 0, 0),
-        });
-        
-        return false;
-      }
-      
-      logoFilePath = foundPath;
-    }
-
     const imageBytes = fs.readFileSync(logoFilePath);
     
     if (imageBytes.length === 0) {
       throw new Error("Logo file is empty");
     }
 
-    console.log(`📊 Logo file read successfully, size: ${imageBytes.length} bytes`);
+    console.log(`📊 Logo file size: ${imageBytes.length} bytes`);
 
+    const fileExtension = path.extname(logoFilePath).toLowerCase();
     let image;
-    const fileExtension = logoFilePath.toLowerCase();
     
-    // Determine image type and embed accordingly
-    if (fileExtension.endsWith('.png')) {
+    if (fileExtension === '.png') {
       console.log("🖼️ Embedding as PNG...");
       image = await pdfDoc.embedPng(imageBytes);
-    } else if (fileExtension.endsWith('.jpg') || fileExtension.endsWith('.jpeg')) {
+    } else if (fileExtension === '.jpg' || fileExtension === '.jpeg') {
       console.log("🖼️ Embedding as JPG...");
       image = await pdfDoc.embedJpg(imageBytes);
     } else {
-      // Try both PNG and JPG as fallback
+      // Try both formats
       try {
         image = await pdfDoc.embedPng(imageBytes);
-        console.log("🖼️ Embedded as PNG (fallback)");
-      } catch {
-        try {
-          image = await pdfDoc.embedJpg(imageBytes);
-          console.log("🖼️ Embedded as JPG (fallback)");
-        } catch {
-          throw new Error('Unsupported image format');
-        }
+        console.log("🖼️ Embedded as PNG (auto-detected)");
+      } catch (pngError) {
+        image = await pdfDoc.embedJpg(imageBytes);
+        console.log("🖼️ Embedded as JPG (auto-detected)");
       }
     }
 
     console.log(`📏 Logo dimensions: ${image.width}x${image.height}`);
+    return image;
 
-    // Scale logo to appropriate size
-    const maxWidth = 80;
-    const scale = maxWidth / image.width;
-    const logoWidth = image.width * scale;
-    const logoHeight = image.height * scale;
+  } catch (error) {
+    console.error("❌ Failed to load logo image:", error);
+    throw error;
+  }
+};
 
-    console.log(`📐 Scaled logo dimensions: ${logoWidth}x${logoHeight}`);
-
-    // Position in top right corner
+// UPDATED: Add logo to top-right corner
+// UPDATED: Add logo to top-right corner - more towards the edge
+const addLogoToTopRight = async (page, logoImage) => {
+  try {
     const pageWidth = page.getWidth();
     const pageHeight = page.getHeight();
-    const x = pageWidth - logoWidth - 50; // 50px from right edge
-    const y = pageHeight - logoHeight - 50; // 50px from top
 
-    console.log(`📍 Positioning logo at (${x}, ${y})`);
+    // Scale logo for top-right position (smaller)
+    const maxWidth = 50; // Reduced from 60
+    const maxHeight = 40; // Reduced from 45
+    const widthRatio = maxWidth / logoImage.width;
+    const heightRatio = maxHeight / logoImage.height;
+    const scale = Math.min(widthRatio, heightRatio, 1);
+    
+    const logoWidth = logoImage.width * scale;
+    const logoHeight = logoImage.height * scale;
+
+    // Position in top right corner - closer to edges
+    const x = pageWidth - logoWidth - 15; // Reduced from 30px (closer to right edge)
+    const y = pageHeight - logoHeight - 15; // Reduced from 30px (closer to top edge)
+
+    console.log(`📍 Positioning top-right logo at (${x}, ${y}), size: ${logoWidth}x${logoHeight}`);
 
     // Draw the logo
-    page.drawImage(image, {
+    page.drawImage(logoImage, {
       x,
       y,
       width: logoWidth,
       height: logoHeight,
     });
 
-    // Add a border around the logo to make it visible
-    page.drawRectangle({
-      x: x - 2,
-      y: y - 2,
-      width: logoWidth + 4,
-      height: logoHeight + 4,
-      borderColor: rgb(0, 0, 0),
-      borderWidth: 1,
-    });
-
-    console.log(`✅ Logo successfully added with border`);
     return true;
 
   } catch (error) {
-    console.error("❌ Failed to add logo:", error);
-    
-    // Add a placeholder so we know something should be there
-    const pageWidth = page.getWidth();
-    const pageHeight = page.getHeight();
-    
-    page.drawRectangle({
-      x: pageWidth - 132,
-      y: pageHeight - 132,
-      width: 84,
-      height: 84,
-      color: rgb(1, 0, 0),
-      opacity: 0.2,
-    });
-    
-    page.drawText('LOGO MISSING', {
-      x: pageWidth - 120,
-      y: pageHeight - 80,
-      size: 8,
-      color: rgb(1, 0, 0),
-    });
-    
-    return false;
+    console.error("❌ Failed to add top-right logo:", error);
+    throw error;
   }
 };
 
-const addWatermarkToPage = (page, watermarkText, width, height) => {
+// NEW: Add logo as watermark (background)
+const addLogoWatermark = async (page, logoImage, pageWidth, pageHeight) => {
   try {
-    console.log(`💧 Adding watermark: "${watermarkText}"`);
+    console.log("💧 Adding logo watermark...");
     
-    // Add primary watermark
-    page.drawText(watermarkText, {
-      x: width / 2 - 100,
-      y: height / 2,
-      size: 48,
-      color: rgb(0.7, 0.7, 0.7),
-      opacity: 0.3,
-      rotate: degrees(45),
-    });
+    // Scale logo for watermark (larger, more transparent)
+    const maxWidth = 200;
+    const maxHeight = 150;
+    const widthRatio = maxWidth / logoImage.width;
+    const heightRatio = maxHeight / logoImage.height;
+    const scale = Math.min(widthRatio, heightRatio, 1);
+    
+    const watermarkWidth = logoImage.width * scale;
+    const watermarkHeight = logoImage.height * scale;
 
-    console.log(`✅ Watermark added successfully`);
+    // Calculate positions for multiple watermark instances
+    const watermarkPositions = [
+      // Center
+      { x: (pageWidth - watermarkWidth) / 2, y: (pageHeight - watermarkHeight) / 2 },
+      // Top-left quadrant
+      { x: pageWidth * 0.25 - watermarkWidth / 2, y: pageHeight * 0.75 - watermarkHeight / 2 },
+      // Top-right quadrant
+      { x: pageWidth * 0.75 - watermarkWidth / 2, y: pageHeight * 0.75 - watermarkHeight / 2 },
+      // Bottom-left quadrant
+      { x: pageWidth * 0.25 - watermarkWidth / 2, y: pageHeight * 0.25 - watermarkHeight / 2 },
+      // Bottom-right quadrant
+      { x: pageWidth * 0.75 - watermarkWidth / 2, y: pageHeight * 0.25 - watermarkHeight / 2 },
+    ];
+
+    // Add multiple watermarks for better coverage
+    for (const position of watermarkPositions) {
+      page.drawImage(logoImage, {
+        x: position.x,
+        y: position.y,
+        width: watermarkWidth,
+        height: watermarkHeight,
+        opacity: 0.1, // Very transparent for watermark effect
+      });
+    }
+
+    console.log(`✅ Logo watermark added at ${watermarkPositions.length} positions`);
+    return true;
+
   } catch (error) {
-    console.error("❌ Failed to add watermark:", error);
+    console.error("❌ Failed to add logo watermark:", error);
+    throw error;
   }
 };
 
-// TEST ENDPOINT - Creates a simple PDF with guaranteed logo
+// UPDATED: Add text watermark (as additional watermark)
+const addTextWatermark = (page, watermarkText, width, height) => {
+  try {
+    console.log(`💧 Adding text watermark: "${watermarkText}"`);
+    
+    // Add multiple text watermarks
+    const textPositions = [
+      { x: width / 2 - 120, y: height / 2, angle: 45, size: 36 },
+      { x: width / 4, y: height * 0.75, angle: 30, size: 28 },
+      { x: width * 0.75, y: height / 4, angle: -30, size: 28 },
+    ];
+    
+    for (const pos of textPositions) {
+      page.drawText(watermarkText, {
+        x: pos.x,
+        y: pos.y,
+        size: pos.size,
+        color: rgb(0.7, 0.7, 0.7),
+        opacity: 0.15, // Very subtle
+        rotate: degrees(pos.angle),
+      });
+    }
+
+    console.log(`✅ Text watermark added successfully`);
+  } catch (error) {
+    console.error("❌ Failed to add text watermark:", error);
+  }
+};
+
+// Keep your existing test endpoints the same...
 export const testLogoPDF = async (req, res) => {
   try {
-    console.log("🧪 Creating test PDF with logo...");
+    console.log("🧪 Creating test PDF with logo watermark...");
     
-    // Create a new PDF document
     const pdfDoc = await PDFDocument.create();
-    const page = pdfDoc.addPage([595, 842]); // A4 size
+    const page = pdfDoc.addPage([595, 842]);
 
     // Add title
-    page.drawText('LOGO AND WATERMARK TEST', {
+    page.drawText('LOGO WATERMARK TEST', {
       x: 50,
       y: 750,
       size: 24,
       color: rgb(0, 0, 0),
     });
 
-    page.drawText('This PDF tests if logos and watermarks work correctly', {
+    page.drawText('This PDF tests if logo watermarks work correctly', {
       x: 50,
       y: 700,
       size: 14,
       color: rgb(0.2, 0.2, 0.2),
     });
 
-    // Try to add the company logo
+    // Try to load and use logo for both top-right and watermark
     const logoPaths = [
       path.join(process.cwd(), 'public', 'Nexu Revised 6.png'),
       path.join(__dirname, '..', 'public', 'Nexu Revised 6.png'),
-      path.join(__dirname, '..', '..', 'public', 'Nexu Revised 6.png'),
     ];
 
-    let logoAdded = false;
+    let logoImage = null;
     for (const logoPath of logoPaths) {
       if (fs.existsSync(logoPath)) {
         try {
-          console.log(`🖼️ Adding logo from: ${logoPath}`);
+          console.log(`🖼️ Loading logo from: ${logoPath}`);
           const imageBytes = fs.readFileSync(logoPath);
-          const image = await pdfDoc.embedPng(imageBytes);
-          
-          const logoWidth = 100;
-          const logoHeight = (image.height * logoWidth) / image.width;
-          
-          const x = 595 - logoWidth - 50;
-          const y = 842 - logoHeight - 50;
-          
-          page.drawImage(image, {
-            x,
-            y,
-            width: logoWidth,
-            height: logoHeight,
-          });
-
-          // Add border and label
-          page.drawRectangle({
-            x: x - 2,
-            y: y - 2,
-            width: logoWidth + 4,
-            height: logoHeight + 4,
-            borderColor: rgb(0, 0, 1),
-            borderWidth: 2,
-          });
-
-          page.drawText('COMPANY LOGO', {
-            x: x,
-            y: y - 20,
-            size: 10,
-            color: rgb(0, 0, 1),
-          });
-
-          logoAdded = true;
-          console.log("✅ Logo added successfully to test PDF");
+          logoImage = await pdfDoc.embedPng(imageBytes);
+          console.log("✅ Logo loaded for testing");
           break;
         } catch (error) {
-          console.warn(`⚠️ Failed to add logo from ${logoPath}:`, error.message);
+          console.warn(`⚠️ Failed to load logo from ${logoPath}:`, error.message);
         }
       }
     }
 
-    if (!logoAdded) {
-      // Add placeholder
-      page.drawRectangle({
-        x: 415,
-        y: 662,
-        width: 100,
-        height: 100,
-        color: rgb(1, 0, 0),
-        opacity: 0.3,
-      });
+    if (logoImage) {
+      // Add top-right logo
+      await addLogoToTopRight(page, logoImage);
       
-      page.drawText('LOGO NOT FOUND', {
-        x: 425,
-        y: 712,
-        size: 12,
-        color: rgb(1, 0, 0),
-      });
+      // Add logo watermark
+      await addLogoWatermark(page, logoImage, 595, 842);
       
-      page.drawText('Check: public/Nexu Revised 6.png', {
+      page.drawText('Logo Watermark: ADDED ✓', {
         x: 50,
-        y: 600,
-        size: 10,
+        y: 650,
+        size: 12,
+        color: rgb(0, 0.5, 0),
+      });
+    } else {
+      page.drawText('Logo Watermark: MISSING ✗', {
+        x: 50,
+        y: 650,
+        size: 12,
         color: rgb(1, 0, 0),
       });
     }
 
-    // Add watermark
-    page.drawText('CONFIDENTIAL', {
-      x: 200,
-      y: 400,
-      size: 48,
-      color: rgb(0.7, 0.7, 0.7),
-      opacity: 0.3,
-      rotate: degrees(45),
-    });
-
-    // Add status message
-    page.drawText(`Logo Status: ${logoAdded ? 'ADDED ✓' : 'MISSING ✗'}`, {
-      x: 50,
-      y: 650,
-      size: 12,
-      color: logoAdded ? rgb(0, 0.5, 0) : rgb(1, 0, 0),
-    });
-
-    page.drawText(`Watermark Status: ADDED ✓`, {
+    // Add text watermark
+    addTextWatermark(page, "TEST WATERMARK", 595, 842);
+    
+    page.drawText('Text Watermark: ADDED ✓', {
       x: 50,
       y: 630,
       size: 12,
       color: rgb(0, 0.5, 0),
     });
 
-    // Serialize to bytes
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
     
     console.log("✅ Test PDF created, size:", pdfBuffer.length, "bytes");
 
-    // Send as PDF
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="logo-test.pdf"');
+    res.setHeader("Content-Disposition", 'attachment; filename="logo-watermark-test.pdf"');
     res.setHeader("Content-Length", pdfBuffer.length);
     
     return res.send(pdfBuffer);
@@ -484,12 +434,11 @@ export const testLogoPDF = async (req, res) => {
   }
 };
 
-// File system check
+// Keep your existing checkFiles function...
 export const checkFiles = async (req, res) => {
   try {
     const checks = [];
     
-    // Check various logo paths
     const logoPaths = [
       { name: 'Current Working Directory', path: path.join(process.cwd(), 'public', 'Nexu Revised 6.png') },
       { name: 'Relative from controller', path: path.join(__dirname, '..', 'public', 'Nexu Revised 6.png') },
@@ -515,5 +464,34 @@ export const checkFiles = async (req, res) => {
   } catch (err) {
     console.error("❌ File check error:", err);
     res.status(500).json({ error: err.message });
+  }
+};
+
+// Add this function to your brandingController.js (at the end of the file)
+
+// NEW: Debug information endpoint
+export const getDebugInfo = async (req, res) => {
+  try {
+    const debugInfo = {
+      timestamp: new Date().toISOString(),
+      currentWorkingDirectory: process.cwd(),
+      controllerDirectory: __dirname,
+      environment: process.env.NODE_ENV || 'development',
+      publicDirectory: path.join(process.cwd(), 'public'),
+      logoPaths: [
+        path.join(process.cwd(), 'public', 'Nexu Revised 6.png'),
+        path.join(__dirname, '..', 'public', 'Nexu Revised 6.png'),
+        path.join(__dirname, '..', '..', 'public', 'Nexu Revised 6.png'),
+      ].map(p => ({
+        path: p,
+        exists: fs.existsSync(p),
+        size: fs.existsSync(p) ? fs.statSync(p).size : 0
+      }))
+    };
+    
+    res.json(debugInfo);
+  } catch (error) {
+    console.error('❌ Debug info error:', error);
+    res.status(500).json({ error: error.message });
   }
 };

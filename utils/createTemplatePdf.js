@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
-export const createTemplatePdf = async (cvText) => {
+export const createTemplatePdf = async (cvText, logoImage = null) => {
   try {
     console.log("📄 Creating PDF document...");
     
@@ -14,6 +14,11 @@ export const createTemplatePdf = async (cvText) => {
     const margin = 50;
     let y = height - margin;
 
+    // Add watermark/logo if provided
+    if (logoImage) {
+      await addWatermark(pdfDoc, page, logoImage, width, height);
+    }
+
     const lines = cvText.split("\n");
 
     for (const line of lines) {
@@ -21,6 +26,11 @@ export const createTemplatePdf = async (cvText) => {
       if (y < margin + 50) {
         page = pdfDoc.addPage([595.28, 841.89]);
         y = height - margin;
+        
+        // Add watermark to new page as well
+        if (logoImage) {
+          await addWatermark(pdfDoc, page, logoImage, width, height);
+        }
       }
 
       // Skip empty lines but maintain spacing
@@ -85,5 +95,110 @@ export const createTemplatePdf = async (cvText) => {
   } catch (error) {
     console.error("❌ PDF creation error:", error);
     throw new Error(`Failed to create PDF: ${error.message}`);
+  }
+};
+
+// Helper function to add watermark/logo
+const addWatermark = async (pdfDoc, page, logoImage, pageWidth, pageHeight) => {
+  try {
+    let image;
+    
+    // Handle different image types
+    if (typeof logoImage === 'string') {
+      // If it's a base64 string
+      if (logoImage.startsWith('data:')) {
+        const base64Data = logoImage.split(',')[1];
+        const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        image = await pdfDoc.embedPng(imageBytes);
+      } 
+      // If it's a URL or file path (you'll need to fetch it first)
+      else {
+        console.warn('URL loading requires additional setup');
+        return;
+      }
+    } 
+    // If it's already an image buffer/bytes
+    else if (logoImage instanceof Uint8Array) {
+      try {
+        image = await pdfDoc.embedPng(logoImage);
+      } catch (pngError) {
+        try {
+          image = await pdfDoc.embedJpg(logoImage);
+        } catch (jpgError) {
+          console.error('❌ Failed to embed image as PNG or JPG:', jpgError);
+          return;
+        }
+      }
+    }
+
+    if (!image) {
+      console.warn('❌ No valid image provided for watermark');
+      return;
+    }
+
+    // Resize the image (adjust dimensions as needed)
+    const maxWidth = 100;
+    const maxHeight = 60;
+    
+    const imageDims = image.scaleToFit(maxWidth, maxHeight);
+    
+    // Position the logo (example: top-right corner)
+    const x = pageWidth - imageDims.width - 50; // 50px from right edge
+    const y = pageHeight - imageDims.height - 50; // 50px from top edge
+    
+    // Draw the image with reduced opacity for watermark effect
+    page.drawImage(image, {
+      x,
+      y,
+      width: imageDims.width,
+      height: imageDims.height,
+      opacity: 0.3, // Adjust opacity for watermark effect (0.1-0.5 typically)
+    });
+
+    console.log("✅ Watermark added successfully");
+
+  } catch (error) {
+    console.error("❌ Watermark addition error:", error);
+  }
+};
+
+// Alternative function for centered watermark
+const addCenteredWatermark = async (pdfDoc, page, logoImage, pageWidth, pageHeight) => {
+  try {
+    let image;
+    
+    // Same image embedding logic as above
+    if (typeof logoImage === 'string' && logoImage.startsWith('data:')) {
+      const base64Data = logoImage.split(',')[1];
+      const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      image = await pdfDoc.embedPng(imageBytes);
+    } else if (logoImage instanceof Uint8Array) {
+      try {
+        image = await pdfDoc.embedPng(logoImage);
+      } catch (pngError) {
+        image = await pdfDoc.embedJpg(logoImage);
+      }
+    }
+
+    if (!image) return;
+
+    // Center the watermark
+    const maxWidth = 200;
+    const maxHeight = 120;
+    const imageDims = image.scaleToFit(maxWidth, maxHeight);
+    
+    const x = (pageWidth - imageDims.width) / 2;
+    const y = (pageHeight - imageDims.height) / 2;
+    
+    page.drawImage(image, {
+      x,
+      y,
+      width: imageDims.width,
+      height: imageDims.height,
+      opacity: 0.1, // Very light for centered watermark
+    });
+
+  } catch (error) {
+    console.error("❌ Centered watermark error:", error);
   }
 };
