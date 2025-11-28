@@ -1,0 +1,80 @@
+{
+  "id": "cv_1764326304680_ddx8x04ht",
+  "timestamp": "2025-11-28T10:38:24.680Z",
+  "originalFileName": "NILADRI_MODAK_UPDATED_RESUME (1).pdf",
+  "metadata": {
+    "parser": "gemini_vision",
+    "fileType": "application/pdf"
+  },
+  "data": {
+    "personal_info": {
+      "full_name": "NILADRI MODAK",
+      "email": "niladrimodakk2001@gmail.com",
+      "phone": "",
+      "location": "",
+      "linkedin": "",
+      "portfolio": "https://portfolio-iota-nine-20.vercel.app/"
+    },
+    "professional_summary": "Experienced professional with strong skills and proven track record.",
+    "skills": [
+      "C++",
+      "JavaScript",
+      "SQL",
+      "CSS",
+      "HTML",
+      "React Js",
+      "Express Js",
+      "Node Js",
+      "Tailwind CSS",
+      "Redux",
+      "MongoDB"
+    ],
+    "experience": [
+      {
+        "job_title": "Assistant System Engineer",
+        "company": "Nexucon Consultancy Services",
+        "duration": "Jul 2025 - Present",
+        "location": "Onsite",
+        "achievements": [
+          "Worked as a Full Stack Developer, contributing to the design and development of end-to-end web applications.",
+          "Implemented RESTful APIs using Node.js and Express, integrated databases such as MongoDB and PostgreSQL, and developed responsive user interfaces using React and TypeScript."
+        ]
+      },
+      {
+        "job_title": "Node.js Developer",
+        "company": "Celebal Technologies",
+        "duration": "May 2024 - Jul 2024",
+        "location": "Remote",
+        "achievements": [
+          "Gained hands-on experience in developing RESTful APIs and backend services using Node.js.",
+          "Implemented secure user authentication and authorization techniques, including JWTs."
+        ]
+      }
+    ],
+    "education": [
+      {
+        "degree": "Bechalor of Technology CGPA-8.8",
+        "institution": "Techno Main Salt Lake",
+        "year": "2025",
+        "location": ""
+      },
+      {
+        "degree": "CISCE-ISC Percentage-91",
+        "institution": "Purwanchal Vidyamandir",
+        "year": "2020",
+        "location": ""
+      }
+    ],
+    "certifications": [
+      "Intermediate Problem Solving at HackerRank",
+      "Basic Problem Solving at HackerRank",
+      "Basic SQL at HackerRank"
+    ],
+    "projects": [
+      "Educate India: An e-learning platform built with the MERN stack and Tailwind CSS. (MongoDB, Express, React, Node.js) and Prisma, aimed at providing education to the underprivileged aiming to provide education at just Rs 20. The project focuses on student progress and tracking performance and efficient education from teacher along with efficient job opportunities, scholarships and inbuilt library.",
+      "Econnect: A real-time chat application that uses the MERN stack and WebSockets for seamless communication. Integrated user authentication and real-time message updates, creating an interactive and efficient chat experience. Redux was used to effectively manage the application state.",
+      "Hisab Rakho: An inventory management system using the MERN stack with Redux for state management. Facilitates efficient inventory tracking, stock management, and reporting. Developed data visualization features and user authentication for secure access and real-time inventory updates."
+    ],
+    "languages": []
+  }
+}
