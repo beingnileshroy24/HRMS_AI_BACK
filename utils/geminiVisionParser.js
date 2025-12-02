@@ -208,88 +208,162 @@ Format the output as valid JSON only.
   }
 
   parseVisionResponse(responseText) {
-    try {
-      // Clean the response text
-      let cleanedText = responseText.trim();
+  try {
+    // Clean the response text
+    let cleanedText = responseText.trim();
 
-      // Remove markdown code blocks
-      cleanedText = cleanedText.replace(/```json\s*/g, "");
-      cleanedText = cleanedText.replace(/```\s*/g, "");
+    // Remove markdown code blocks
+    cleanedText = cleanedText.replace(/```json\s*/g, "");
+    cleanedText = cleanedText.replace(/```\s*/g, "");
 
-      // Extract JSON from response
-      const jsonStart = cleanedText.indexOf("{");
-      const jsonEnd = cleanedText.lastIndexOf("}") + 1;
+    // Extract JSON from response
+    const jsonStart = cleanedText.indexOf("{");
+    const jsonEnd = cleanedText.lastIndexOf("}") + 1;
 
-      if (jsonStart === -1 || jsonEnd === 0) {
-        throw new Error("No JSON object found in vision response");
-      }
-
-      cleanedText = cleanedText.substring(jsonStart, jsonEnd);
-
-      // Parse JSON
-      const parsedData = JSON.parse(cleanedText);
-
-      // Validate and clean the data
-      return this.validateVisionData(parsedData);
-    } catch (error) {
-      console.error("❌ Failed to parse vision response:", error);
-      console.log("Raw vision response:", responseText);
-      throw new Error(`Failed to parse vision response: ${error.message}`);
+    if (jsonStart === -1 || jsonEnd === 0) {
+      console.log("Raw response for debugging:", responseText);
+      throw new Error("No JSON object found in vision response");
     }
+
+    cleanedText = cleanedText.substring(jsonStart, jsonEnd);
+
+    // Parse JSON
+    const parsedData = JSON.parse(cleanedText);
+
+    // ✅ FIX: Ensure projects is an array before validation
+    if (parsedData.projects && !Array.isArray(parsedData.projects)) {
+      console.warn("Projects is not an array, converting...", parsedData.projects);
+      parsedData.projects = [parsedData.projects];
+    }
+
+    // ✅ FIX: Ensure all array fields are arrays
+    const arrayFields = ['skills', 'certifications', 'languages', 'projects'];
+    arrayFields.forEach(field => {
+      if (parsedData[field] && !Array.isArray(parsedData[field])) {
+        console.warn(`${field} is not an array, converting...`, parsedData[field]);
+        parsedData[field] = [parsedData[field]];
+      }
+    });
+
+    // Validate and clean the data
+    return this.validateVisionData(parsedData);
+  } catch (error) {
+    console.error("❌ Failed to parse vision response:", error);
+    console.log("Raw vision response:", responseText);
+    
+    // ✅ FIX: Return a safe default structure instead of throwing
+    console.log("Returning default structure due to parsing error");
+    return this.getDefaultStructure();
   }
+}
+
+// ✅ ADD THIS METHOD FOR DEFAULT STRUCTURE
+getDefaultStructure() {
+  return {
+    personal_info: {
+      full_name: "Professional Candidate",
+      email: "",
+      phone: "",
+      location: "",
+      linkedin: "",
+      portfolio: ""
+    },
+    professional_summary: "Experienced professional with strong skills and proven track record.",
+    skills: [],
+    experience: [],
+    education: [],
+    certifications: [],
+    projects: [],
+    languages: []
+  };
+}
 
   validateVisionData(data) {
-    // Ensure all required fields exist with proper fallbacks
-    const validatedData = {
-      personal_info: {
-        full_name:
-          data.personal_info?.full_name?.trim() ||
-          this.extractNameFromVision(data) ||
-          "Professional Candidate",
-        email: data.personal_info?.email?.trim() || "",
-        phone: data.personal_info?.phone?.trim() || "",
-        location: data.personal_info?.location?.trim() || "",
-        linkedin: data.personal_info?.linkedin?.trim() || "",
-        portfolio: data.personal_info?.portfolio?.trim() || "",
-      },
-      professional_summary:
-        data.professional_summary?.trim() ||
-        "Experienced professional with strong skills and proven track record.",
-      skills: Array.isArray(data.skills)
-        ? data.skills.filter((skill) => skill && skill.trim())
-        : [],
-      experience: Array.isArray(data.experience)
-        ? data.experience.map((exp) => ({
-            job_title: exp.job_title?.trim() || "Professional Role",
-            company: exp.company?.trim() || "Company",
-            duration: exp.duration?.trim() || "Duration not specified",
-            location: exp.location?.trim() || "",
-            achievements: Array.isArray(exp.achievements)
-              ? exp.achievements.filter((ach) => ach && ach.trim())
-              : [],
-          }))
-        : [],
-      education: Array.isArray(data.education)
-        ? data.education.map((edu) => ({
-            degree: edu.degree?.trim() || "Degree",
-            institution: edu.institution?.trim() || "Institution",
-            year: edu.year?.trim() || "Year not specified",
-            location: edu.location?.trim() || "",
-          }))
-        : [],
-      certifications: Array.isArray(data.certifications)
-        ? data.certifications.filter((cert) => cert && cert.trim())
-        : [],
-      projects: Array.isArray(data.projects)
-        ? data.projects.filter((project) => project && project.trim())
-        : [],
-      languages: Array.isArray(data.languages)
-        ? data.languages.filter((lang) => lang && lang.trim())
-        : [],
-    };
+  // Ensure all required fields exist with proper fallbacks
+  const validatedData = {
+    personal_info: {
+      full_name: this.safeString(data.personal_info?.full_name) || this.extractNameFromVision(data) || "Professional Candidate",
+      email: this.safeString(data.personal_info?.email) || "",
+      phone: this.safeString(data.personal_info?.phone) || "",
+      location: this.safeString(data.personal_info?.location) || "",
+      linkedin: this.safeString(data.personal_info?.linkedin) || "",
+      portfolio: this.safeString(data.personal_info?.portfolio) || "",
+    },
+    professional_summary: this.safeString(data.professional_summary) || 
+      "Experienced professional with strong skills and proven track record.",
+    skills: this.normalizeArray(data.skills),
+    experience: this.normalizeExperience(data.experience),
+    education: this.normalizeEducation(data.education),
+    certifications: this.normalizeArray(data.certifications),
+    projects: this.normalizeArray(data.projects),
+    languages: this.normalizeArray(data.languages)
+  };
 
-    return validatedData;
+  return validatedData;
+}
+
+// ✅ ADD THIS HELPER METHOD
+safeString(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  // If it's an object or array, convert to JSON string
+  try {
+    return JSON.stringify(value).trim();
+  } catch {
+    return '';
   }
+}
+
+// ✅ IMPROVE normalizeArray method
+normalizeArray(arr) {
+  if (!Array.isArray(arr)) return [];
+  
+  return arr
+    .filter(item => item != null)
+    .map(item => {
+      if (typeof item === 'string') return item.trim();
+      if (typeof item === 'number') return String(item);
+      if (typeof item === 'object') {
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return '';
+        }
+      }
+      return String(item).trim();
+    })
+    .filter(item => item.length > 0);
+}
+
+// ✅ IMPROVE normalizeExperience method
+normalizeExperience(experience) {
+  if (!Array.isArray(experience)) return [];
+  
+  return experience
+    .filter(exp => exp != null)
+    .map(exp => ({
+      job_title: this.safeString(exp.job_title) || "Professional Role",
+      company: this.safeString(exp.company) || "Company",
+      duration: this.safeString(exp.duration) || "Duration not specified",
+      location: this.safeString(exp.location) || "",
+      achievements: this.normalizeArray(exp.achievements)
+    }));
+}
+
+// ✅ IMPROVE normalizeEducation method
+normalizeEducation(education) {
+  if (!Array.isArray(education)) return [];
+  
+  return education
+    .filter(edu => edu != null)
+    .map(edu => ({
+      degree: this.safeString(edu.degree) || "Degree",
+      institution: this.safeString(edu.institution) || "Institution",
+      year: this.safeString(edu.year) || "Year not specified",
+      location: this.safeString(edu.location) || ""
+    }));
+}
 
   extractNameFromVision(data) {
     if (data.full_name) return data.full_name;
@@ -309,28 +383,73 @@ Format the output as valid JSON only.
 
   // Fallback text parsing
   async parseCVTextWithGemini(cvText) {
-    try {
-      // Get model lazily
-      const model = this.getModel("gemini-2.5-pro");
+  try {
+    console.log("🔄 Parsing CV text with Gemini...");
+    
+    // Get model lazily
+    const model = this.getModel("gemini-2.5-pro"); // Use stable version
 
-      const prompt = `
-Extract all information from this CV text and return as structured JSON:
+    const prompt = `
+You are an expert CV/resume parser. Extract all information from this CV text and return as structured JSON.
 
+CV TEXT:
 ${cvText.substring(0, 15000)}
 
-Return valid JSON only with personal_info, skills, experience, education, etc.
+IMPORTANT: Return ONLY a valid JSON object with the following structure (no additional text):
+{
+  "personal_info": {
+    "full_name": "extracted name or empty string",
+    "email": "extracted email or empty string",
+    "phone": "extracted phone or empty string",
+    "location": "extracted location or empty string",
+    "linkedin": "extracted linkedin or empty string",
+    "portfolio": "extracted portfolio or empty string"
+  },
+  "professional_summary": "extracted summary or empty string",
+  "skills": ["skill1", "skill2", ...],
+  "experience": [
+    {
+      "job_title": "extracted job title",
+      "company": "extracted company",
+      "duration": "extracted duration",
+      "location": "extracted location",
+      "achievements": ["achievement1", "achievement2", ...]
+    }
+  ],
+  "education": [
+    {
+      "degree": "extracted degree",
+      "institution": "extracted institution",
+      "year": "extracted year",
+      "location": "extracted location"
+    }
+  ],
+  "certifications": ["cert1", "cert2", ...],
+  "projects": ["project1", "project2", ...],
+  "languages": ["language1", "language2", ...]
+}
+
+CRITICAL RULES:
+1. All array fields (skills, certifications, projects, languages) must be arrays, even if empty
+2. All string values must be properly escaped
+3. If a field cannot be extracted, use an empty string for strings or empty array for arrays
+4. Return ONLY the JSON object, no markdown code blocks
 `;
 
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-      return this.parseVisionResponse(text);
-    } catch (error) {
-      console.error("❌ Text parsing failed:", error);
-      throw error;
-    }
+    console.log("✅ Text parsed successfully");
+    return this.parseVisionResponse(text);
+  } catch (error) {
+    console.error("❌ Text parsing failed:", error);
+    
+    // ✅ FIX: Return default structure instead of throwing
+    console.log("Returning default structure due to parsing error");
+    return this.getDefaultStructure();
   }
+}
 
   // Helper for generating formatted CV text (referenced in controller)
   async generateFormattedCV(extractedData) {

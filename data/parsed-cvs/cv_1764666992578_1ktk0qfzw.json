@@ -1,0 +1,94 @@
+{
+  "id": "cv_1764666992578_1ktk0qfzw",
+  "timestamp": "2025-12-02T09:16:32.578Z",
+  "originalFileName": "Adarsh resume.pdf",
+  "metadata": {
+    "parser": "gemini_vision",
+    "fileType": "application/pdf"
+  },
+  "data": {
+    "personal_info": {
+      "full_name": "Adarsh Gupta",
+      "email": "gadarsh747@gmail.com",
+      "phone": "",
+      "location": "",
+      "linkedin": "https://www.linkedin.com/in/adarshgupta404",
+      "portfolio": "https://adarshgupta.tech"
+    },
+    "professional_summary": "Experienced professional with strong skills and proven track record.",
+    "skills": [
+      "JavaScript",
+      "Typescript",
+      "Python",
+      "C++",
+      "JAVA",
+      "HTML",
+      "CSS",
+      "SQL/NoSQL",
+      "Tailwindcss",
+      "React.js",
+      "Redux",
+      "Next.js",
+      "Node.js",
+      "Express.js",
+      "Nest.js",
+      "Docker",
+      "MySQL",
+      "Postgresql",
+      "MongoDB",
+      "Firebase",
+      "Azure DevOps",
+      "Vercel",
+      "AWS services",
+      "GrapeJs",
+      "Git",
+      "GitHub",
+      "Stripe",
+      "dnd kit",
+      "ShadcnUI"
+    ],
+    "experience": [
+      {
+        "job_title": "Full Stack Developer Intern",
+        "company": "Offigitech",
+        "duration": "Jan. 2024 - Present",
+        "location": "",
+        "achievements": [
+          "Spearheaded the development of Omnileadz, a CRM solution for businesses.",
+          "Integrated GrapeJS for a no-code website builder within the CRM platform.",
+          "Developed an npm package to streamline deployment processes, boosting company productivity.",
+          "Implemented media storage with AWS S3 bucket, blog page builder, and lead cycle management system.",
+          "Making a substantial impact on company operations within a short timeframe, enchaning user experience by 2 times.",
+          "Implemented coding best practices that reduced rework by 3 times and cost by 2 times.",
+          "Leveraged technologies such as NestJS, Typescript, MongoDB, AWS services, Facebook Graph API, Razorpay API, Azure DevOps and CI/CD pipelines for efficient business management and scalability."
+        ]
+      },
+      {
+        "job_title": "Full Stack Developer Intern",
+        "company": "SmartNeev",
+        "duration": "Sept. 2023 - Dec 2023",
+        "location": "",
+        "achievements": [
+          "Developed Next.js-based frontend for a real estate startup utilizing machine learning for recommendations.",
+          "Integrated PostgreSQL for efficient data management.",
+          "Implemented a machine learning-driven recommendation system and a ChatGPT-based chatbot.",
+          "Created landing page and blog section from scratch to enhance user engagement."
+        ]
+      }
+    ],
+    "education": [
+      {
+        "degree": "B.Tech. in Computer Science and Technology",
+        "institution": "Netaji Subhash Engineering College (NSEC)",
+        "year": "Jun. 2025",
+        "location": ""
+      }
+    ],
+    "certifications": [],
+    "projects": [
+      "Ecommerce Website (August, 2023): Personalized e-commerce tops and insights web application. Engineered a feature-rich e-commerce web application using Next.js, Tailwind CSS, and Firebase. Implemented robust features, including authentication, secure payment processing via Stripe, and efficient cart management.",
+      "Drag and Drop FormBuilder (January, 2024): Drag and Drop form builder to manage user submitted data. Developed a dynamic form builder using Next.js, ShadcnUI, dnd kit, Nest.js, MongoDB, and Express.js. Implemented user data collection functionality through published forms."
+    ],
+    "languages": []
+  }
+}

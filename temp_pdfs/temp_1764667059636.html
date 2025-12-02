@@ -1,0 +1,263 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Professional CV - Adarsh Gupta</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 25mm;
+            background: white;
+        }
+        .header {
+            border-bottom: 3px solid #2c5282;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .name {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 8px;
+        }
+        .contact-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c5282;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        .skills-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .skill-tag {
+            background: #4299e1;
+            color: white;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .experience-item {
+            margin-bottom: 20px;
+        }
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5px;
+        }
+        .job-title {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        .company-info {
+            color: #4a5568;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .duration {
+            color: #718096;
+            font-size: 14px;
+            font-style: italic;
+        }
+        .achievements {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        .achievements li {
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+        .education-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .education-left {
+            flex: 1;
+        }
+        .degree {
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .institution {
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .education-right {
+            text-align: right;
+            color: #718096;
+            font-size: 14px;
+        }
+        .cert-item, .project-item, .lang-item {
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 15px;
+        }
+        @media print {
+            body {
+                padding: 20mm;
+                font-size: 12pt;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="name">Adarsh Gupta</div>
+        <div class="contact-info">
+            <div class="contact-item">📧 gadarsh747@gmail.com</div>
+            <div class="contact-item">🔗 https://www.linkedin.com/in/adarshgupta404</div>
+            <div class="contact-item">🌐 https://adarshgupta.tech</div>
+        </div>
+    </div>
+
+    <!-- PROFESSIONAL SUMMARY -->
+    <div class="section">
+        <div class="section-title">Professional Summary</div>
+        <p>Experienced professional with strong skills and proven track record.</p>
+    </div>
+
+    <!-- SKILLS -->
+    <div class="section">
+        <div class="section-title">Skills & Expertise</div>
+        <div class="skills-grid">
+            <span class="skill-tag">JavaScript</span>
+            <span class="skill-tag">Typescript</span>
+            <span class="skill-tag">Python</span>
+            <span class="skill-tag">C++</span>
+            <span class="skill-tag">JAVA</span>
+            <span class="skill-tag">HTML</span>
+            <span class="skill-tag">CSS</span>
+            <span class="skill-tag">SQL/NoSQL</span>
+            <span class="skill-tag">Tailwindcss</span>
+            <span class="skill-tag">React.js</span>
+            <span class="skill-tag">Redux</span>
+            <span class="skill-tag">Next.js</span>
+            <span class="skill-tag">Node.js</span>
+            <span class="skill-tag">Express.js</span>
+            <span class="skill-tag">Nest.js</span>
+            <span class="skill-tag">Docker</span>
+            <span class="skill-tag">MySQL</span>
+            <span class="skill-tag">Postgresql</span>
+            <span class="skill-tag">MongoDB</span>
+            <span class="skill-tag">Firebase</span>
+            <span class="skill-tag">Azure DevOps</span>
+            <span class="skill-tag">Vercel</span>
+        </div>
+    </div>
+
+    <!-- WORK EXPERIENCE -->
+    <div class="section">
+        <div class="section-title">Work Experience</div>
+        <div class="experience-item">
+            <div class="job-header">
+                <div class="job-title">Full Stack Developer Intern</div>
+                <div class="duration">Jan. 2024 - Present</div>
+            </div>
+            <div class="company-info">Offigitech</div>
+            <ul class="achievements">
+                <li>Spearheaded the development of Omnileadz, a CRM solution for businesses.</li>
+                <li>Integrated GrapeJS for a no-code website builder within the CRM platform.</li>
+                <li>Developed an npm package to streamline deployment processes, boosting company productivity.</li>
+                <li>Implemented media storage with AWS S3 bucket, blog page builder, and lead cycle management system.</li>
+                <li>Making a substantial impact on company operations within a short timeframe, enchaning user experience by 2 times.</li>
+                <li>Implemented coding best practices that reduced rework by 3 times and cost by 2 times.</li>
+                <li>Leveraged technologies such as NestJS, Typescript, MongoDB, AWS services, Facebook Graph API, Razorpay API, Azure DevOps and CI/CD pipelines for efficient business management and scalability.</li>
+            </ul>
+        </div>
+        <div class="experience-item">
+            <div class="job-header">
+                <div class="job-title">Full Stack Developer Intern</div>
+                <div class="duration">Sept. 2023 - Dec 2023</div>
+            </div>
+            <div class="company-info">SmartNeev</div>
+            <ul class="achievements">
+                <li>Developed Next.js-based frontend for a real estate startup utilizing machine learning for recommendations.</li>
+                <li>Integrated PostgreSQL for efficient data management.</li>
+                <li>Implemented a machine learning-driven recommendation system and a ChatGPT-based chatbot.</li>
+                <li>Created landing page and blog section from scratch to enhance user engagement.</li>
+            </ul>
+        </div>
+        <div class="experience-item">
+            <div class="job-header">
+                <div class="job-title">Web Development Team</div>
+                <div class="duration">Sept. 2023 - Ongoing</div>
+            </div>
+            <div class="company-info">Phoenix - NSEC Official Club</div>
+            <ul class="achievements">
+                <li>Contributed to the enhancement of the college club website by actively addressing and resolving various issues within the admin panel.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- EDUCATION -->
+    <div class="section">
+        <div class="section-title">Education</div>
+        <div class="education-item">
+            <div class="education-left">
+                <div class="degree">B.Tech. in Computer Science and Technology</div>
+                <div class="institution">Netaji Subhash Engineering College (NSEC)</div>
+            </div>
+            <div class="education-right">
+                2025
+                
+            </div>
+        </div>
+    </div>
+
+    <!-- CERTIFICATIONS -->
+
+    <!-- PROJECTS -->
+    <div class="section">
+        <div class="section-title">Projects</div>
+        <div class="project-item">• Ecommerce Website (August, 2023): Engineered a feature-rich e-commerce web application using Next.js, Tailwind CSS, and Firebase. Implemented features like authentication, secure payment processing via Stripe, and efficient cart management.</div>
+        <div class="project-item">• Drag and Drop FormBuilder (January, 2024): Developed a dynamic form builder using Next.js, ShadcnUI, dnd kit, Nest.js, MongoDB, and Express.js, enabling users to drag and drop components to create custom forms and implemented user data collection functionality.</div>
+    </div>
+
+    <!-- LANGUAGES -->
+
+    <!-- FOOTER -->
+    <div class="footer">
+        Generated on December 2, 2025 | CV created with AI CV Architect
+    </div>
+</body>
+</html>

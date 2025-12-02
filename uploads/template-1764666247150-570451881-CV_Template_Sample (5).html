@@ -1,0 +1,264 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Professional CV - {{personal_info.full_name}}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 210mm;
+            margin: 0 auto;
+            padding: 25mm;
+            background: white;
+        }
+        .header {
+            border-bottom: 3px solid #2c5282;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .name {
+            font-size: 32px;
+            font-weight: bold;
+            color: #2c5282;
+            margin-bottom: 8px;
+        }
+        .contact-info {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c5282;
+            border-bottom: 2px solid #e2e8f0;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        .skills-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .skill-tag {
+            background: #4299e1;
+            color: white;
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        .experience-item {
+            margin-bottom: 20px;
+        }
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 5px;
+        }
+        .job-title {
+            font-weight: bold;
+            color: #2d3748;
+            font-size: 18px;
+        }
+        .company-info {
+            color: #4a5568;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .duration {
+            color: #718096;
+            font-size: 14px;
+            font-style: italic;
+        }
+        .achievements {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+        .achievements li {
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+        .education-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        .education-left {
+            flex: 1;
+        }
+        .degree {
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .institution {
+            color: #4a5568;
+            font-size: 15px;
+        }
+        .education-right {
+            text-align: right;
+            color: #718096;
+            font-size: 14px;
+        }
+        .cert-item, .project-item, .lang-item {
+            margin-bottom: 8px;
+            font-size: 15px;
+        }
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            color: #a0aec0;
+            font-size: 12px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 15px;
+        }
+        @media print {
+            body {
+                padding: 20mm;
+                font-size: 12pt;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- HEADER -->
+    <div class="header">
+        <div class="name">{{personal_info.full_name}}</div>
+        <div class="contact-info">
+            {{#if personal_info.email}}
+            <div class="contact-item">📧 {{personal_info.email}}</div>
+            {{/if}}
+            {{#if personal_info.phone}}
+            <div class="contact-item">📱 {{personal_info.phone}}</div>
+            {{/if}}
+            {{#if personal_info.location}}
+            <div class="contact-item">📍 {{personal_info.location}}</div>
+            {{/if}}
+            {{#if personal_info.linkedin}}
+            <div class="contact-item">🔗 {{personal_info.linkedin}}</div>
+            {{/if}}
+            {{#if personal_info.portfolio}}
+            <div class="contact-item">🌐 {{personal_info.portfolio}}</div>
+            {{/if}}
+        </div>
+    </div>
+
+    <!-- PROFESSIONAL SUMMARY -->
+    {{#if professional_summary}}
+    <div class="section">
+        <div class="section-title">Professional Summary</div>
+        <p>{{professional_summary}}</p>
+    </div>
+    {{/if}}
+
+    <!-- SKILLS -->
+    {{#hasItems skills}}
+    <div class="section">
+        <div class="section-title">Skills & Expertise</div>
+        <div class="skills-grid">
+            {{#each skills}}
+            <span class="skill-tag">{{this}}</span>
+            {{/each}}
+        </div>
+    </div>
+    {{/hasItems}}
+
+    <!-- WORK EXPERIENCE -->
+    {{#hasItems experience}}
+    <div class="section">
+        <div class="section-title">Work Experience</div>
+        {{#each experience}}
+        <div class="experience-item">
+            <div class="job-header">
+                <div class="job-title">{{job_title}}</div>
+                <div class="duration">{{duration}}</div>
+            </div>
+            <div class="company-info">{{company}}{{#if location}} | {{location}}{{/if}}</div>
+            {{#hasItems achievements}}
+            <ul class="achievements">
+                {{#each achievements}}
+                <li>{{this}}</li>
+                {{/each}}
+            </ul>
+            {{/hasItems}}
+        </div>
+        {{/each}}
+    </div>
+    {{/hasItems}}
+
+    <!-- EDUCATION -->
+    {{#hasItems education}}
+    <div class="section">
+        <div class="section-title">Education</div>
+        {{#each education}}
+        <div class="education-item">
+            <div class="education-left">
+                <div class="degree">{{degree}}</div>
+                <div class="institution">{{institution}}</div>
+            </div>
+            <div class="education-right">
+                {{#if year}}{{year}}{{/if}}
+                {{#if location}}<br/>{{location}}{{/if}}
+            </div>
+        </div>
+        {{/each}}
+    </div>
+    {{/hasItems}}
+
+    <!-- CERTIFICATIONS -->
+    {{#hasItems certifications}}
+    <div class="section">
+        <div class="section-title">Certifications</div>
+        {{#each certifications}}
+        <div class="cert-item">• {{this}}</div>
+        {{/each}}
+    </div>
+    {{/hasItems}}
+
+    <!-- PROJECTS -->
+    {{#hasItems projects}}
+    <div class="section">
+        <div class="section-title">Projects</div>
+        {{#each projects}}
+        <div class="project-item">• {{this}}</div>
+        {{/each}}
+    </div>
+    {{/hasItems}}
+
+    <!-- LANGUAGES -->
+    {{#hasItems languages}}
+    <div class="section">
+        <div class="section-title">Languages</div>
+        <div class="skills-grid">
+            {{#each languages}}
+            <span class="skill-tag">{{this}}</span>
+            {{/each}}
+        </div>
+    </div>
+    {{/hasItems}}
+
+    <!-- FOOTER -->
+    <div class="footer">
+        Generated on {{current_date}} | CV created with AI CV Architect
+    </div>
+</body>
+</html>

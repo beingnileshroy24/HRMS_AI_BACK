@@ -1,0 +1,139 @@
+{
+  "id": "cv_1764665037483_9gkgv18t7",
+  "timestamp": "2025-12-02T08:43:57.483Z",
+  "originalFileName": "UPENDRAKrSINGH_Dot net developer (1).docx",
+  "metadata": {
+    "parser": "gemini_vision",
+    "fileType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
+  "data": {
+    "personal_info": {
+      "full_name": "Upendra Kr Singh",
+      "email": "uksh812@gmail.com",
+      "phone": "+919958515087",
+      "location": "House No-1013,Gali No-6, Bhawani Enclave Basai Chowk, Pincode-12200.",
+      "linkedin": "",
+      "portfolio": ""
+    },
+    "professional_summary": "Having 9.5 Years of IT Industry Experience. Hands on Experience in C#, ASP.Net, MVC5, Web API, WCF, Web Services, Azure, .Net Core 6.0, Java Script, Jquery, Angular16, React.js, Redux, .NET( framework4.0,4.5,4.7), Ado.Net, Entity Framework Linq, SQL Server 2008, SQL Server 2012, SQL Server 2014, PostgreSQL, GIT, SVN, TFS, SignalR, RabbitMQ, Kafka, Google Map API, Payment Get-way, SQL-Query, Stored Procedure, Triggers, CTE, SQL Transaction. Good Knowledge in Bootstrap Framework, HTML, CSS, Microsoft Azure, Microservices. Having good exposure on building and deployment phase of the application. Ability to translate business requirement into conceptual solutions. Good client-interfacing Skills. Strong analytical abilities, good leadership qualities, good team management interpersonal skills and communication skills.",
+    "skills": [
+      "C#",
+      "ASP.Net",
+      "MVC5",
+      "Web API",
+      "WCF",
+      "Web Services",
+      "Azure",
+      ".Net Core 6.0",
+      "Java Script",
+      "Jquery",
+      "Angular16",
+      "React.js",
+      "Redux",
+      ".NET( framework4.0,4.5,4.7)",
+      "Ado.Net",
+      "Entity Framework",
+      "Linq",
+      "SQL Server 2008",
+      "SQL Server 2012",
+      "SQL Server 2014",
+      "PostgreSQL",
+      "GIT",
+      "SVN",
+      "TFS",
+      "SignalR",
+      "RabbitMQ",
+      "Kafka",
+      "Google Map API",
+      "Payment Get-way",
+      "SQL-Query",
+      "Stored Procedure",
+      "Triggers",
+      "CTE",
+      "SQL Transaction",
+      "Bootstrap Framework",
+      "HTML",
+      "CSS",
+      "Microsoft Azure",
+      "Microservices"
+    ],
+    "experience": [
+      {
+        "job_title": "Sr Software Engineer",
+        "company": "Vision Group Retail",
+        "duration": "20 March 2023 to 03/08/2025",
+        "location": "",
+        "achievements": []
+      },
+      {
+        "job_title": "Senior Consultant",
+        "company": "Capgemini IT India Pvt. Ltd.",
+        "duration": "11.02.2022 to 19 March 2023",
+        "location": "",
+        "achievements": []
+      },
+      {
+        "job_title": "Software Engineer",
+        "company": "Mindrops Pvt Ltd",
+        "duration": "10.02.2020 to 10.02.2022",
+        "location": "",
+        "achievements": []
+      },
+      {
+        "job_title": "NET Developer",
+        "company": "Comvision India Pvt Ltd",
+        "duration": "16.01.2017 to 08.02.2020",
+        "location": "",
+        "achievements": []
+      },
+      {
+        "job_title": "NET Developer",
+        "company": "Superbmytrip Pvt Ltd",
+        "duration": "23.11.2015 to 20.12.2016",
+        "location": "",
+        "achievements": []
+      }
+    ],
+    "education": [
+      {
+        "degree": "MCA",
+        "institution": "UPTU",
+        "year": "2014",
+        "location": ""
+      },
+      {
+        "degree": "BCA",
+        "institution": "SMU",
+        "year": "2010",
+        "location": ""
+      },
+      {
+        "degree": "12th/SSC",
+        "institution": "Bihar Board",
+        "year": "2006",
+        "location": ""
+      },
+      {
+        "degree": "10th/HSC",
+        "institution": "Bihar Board",
+        "year": "2004",
+        "location": ""
+      }
+    ],
+    "certifications": [],
+    "projects": [
+      "Vision IOT: Role - Full Stack Developer. Environment - C#, .NET Core 6.0, MVC Framework, Web API, React.js, Redux, SQL Server, Azure function, Azure Blob Storage. Description - The World’s Most Customer-Centric IoT Platform for Retailers & CPG Brands. Unlock real-time, store-level product visibility to elevate retail execution. Effortlessly streamline and scale store audits, monitor planogram compliance, ensure accurate pricing—all in real-time. Our Clients: Coca-Cola, Unilever, Nestlé.",
+      "McDonald's Restaurant: Role - Full Stack Developer. Environment - C#, ASP.NET Core, Web API, Entity Framework, Angular16, RavenDB and used Design Patterns CQRS, Microservices. Description - McDonald’s is one of the most famous and largest fast-food restaurant chains in the world.",
+      "Prodigious ERP System: Role - Full Stack Developer. Environment - C#, ASP.NET MVC Framework, WCF, Ado.Net, JQuery, SQL Server 2012, Kafka. Description - Prodigious HRMS is a system designed to manage the entire range of activities performed by the HR department which includes appointment, appraisals, increments, transfers, leave and attendance, salary generation, TDS on salaries, employee separation etc.",
+      "Traffic Congestion Monitoring System: Role - Full Stack Developer. Environment - C#, .NET Core 3.0, MVC Framework, Web API, Entity Framework, Linq, Angular8, PostgreSQL, RabbitMQ. Description - This Project have to monitor live Traffic Congestion all Toll Plaza of Reliance.",
+      "Reliance Roads Data Analytic: Role - Developer. Environment - C#, MVC5, Web API, Entity Framework, JQuery, Sql-Sever2012. Description - This Project have to manage all reliance toll plaza traffic and revenue.",
+      "Land Information Management System (NTPC): Role - Developer. Environment - C#, MVC5, Web API, Entity Framework, JQuery, Sql-Sever2012 Linq. Description - NTPC have Acquired Land for Col mining, this project is goal mange land Information.",
+      "Superbmytrip: Role - Developer. Environment - c#, Asp.Net, Ado.Net, Sql-Sever2008. Description - Book Domestic & International Flight Tickets and Hotels. SuperbMyTrip is one of the leading and most convenient domestic flights and International flight booking platforms. Link: http://superbmytrip.com/",
+      "DocOPD: Role - Developer. Environment - C#, Asp.Net, Ado.Net, Web services (Json Format), SQL-Sever2008. Description - DocOPD is working in wellness & curative space and committed towards better public health & reducing out of the pocket medical expenses. Link: https://docopd.com/"
+    ],
+    "languages": [
+      "English",
+      "Hindi"
+    ]
+  }
+}

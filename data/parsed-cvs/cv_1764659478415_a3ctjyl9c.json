@@ -1,0 +1,26 @@
+{
+  "id": "cv_1764659478415_a3ctjyl9c",
+  "timestamp": "2025-12-02T07:11:18.415Z",
+  "originalFileName": "NILESH_ROY_Professional_CV.docx",
+  "metadata": {
+    "parser": "gemini_vision",
+    "fileType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
+  "data": {
+    "personal_info": {
+      "full_name": "Professional Candidate",
+      "email": "",
+      "phone": "",
+      "location": "",
+      "linkedin": "",
+      "portfolio": ""
+    },
+    "professional_summary": "Experienced professional with strong skills and proven track record.",
+    "skills": [],
+    "experience": [],
+    "education": [],
+    "certifications": [],
+    "projects": [],
+    "languages": []
+  }
+}
