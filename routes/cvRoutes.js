@@ -20,7 +20,10 @@ import {
   downloadSampleTemplate,
   testDOCXEndpoint,
   uploadTemplateOnly,
-  debugDOCXTemplate
+  debugDOCXTemplate,
+  getAdvancedTemplate,
+  getTemplateDocumentation,
+  testAdvancedTemplate
 } from "../controllers/templatePdfController.js";
 
 const router = express.Router();
@@ -125,6 +128,10 @@ router.get("/data/stats", getParsedDataStats);
 router.get("/data/search", searchParsedData);
 router.get("/data/:id", getParsedDataById);
 router.delete("/data/:id", deleteParsedData);
+
+router.get('/template/advanced', getAdvancedTemplate);
+router.get('/template/documentation', getTemplateDocumentation);
+router.get('/template/test-advanced', testAdvancedTemplate);
 
 router.post("/debug-template", 
   multer({ 

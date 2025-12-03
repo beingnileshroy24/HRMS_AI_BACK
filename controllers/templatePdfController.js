@@ -2,8 +2,186 @@
 import { geminiVisionParser } from '../utils/geminiVisionParser.js';
 import { docxTemplateService } from '../services/docxTemplateService.js';
 import { getSampleTemplateHTML } from '../templates/sampleTemplate.js';
+import { getAdvancedTemplateHTML, getTemplateExamples } from '../templates/advancedTemplate.js';
 import fs from 'fs';
 import JSZip from 'jszip';
+
+export const getAdvancedTemplate = async (req, res) => {
+  try {
+    const template = getAdvancedTemplateHTML();
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', 'attachment; filename="Advanced_CV_Template.html"');
+    
+    return res.send(template);
+    
+  } catch (error) {
+    console.error("❌ Advanced template error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const getTemplateDocumentation = async (req, res) => {
+  try {
+    const examples = getTemplateExamples();
+    
+    return res.json({
+      success: true,
+      documentation: {
+        simple_placeholders: [
+          '[NAME]', '[EMAIL]', '[PHONE]', '[LOCATION]',
+          '[SUMMARY]', '[SKILLS]', '[DATE]'
+        ],
+        advanced_placeholders: [
+          '[ALL_EXPERIENCES]', '[ALL_EDUCATION]', '[SKILLS_BY_CATEGORY]',
+          '[BULLETED_ACHIEVEMENTS]', '[EXPERIENCE_SUMMARY]'
+        ],
+        loops: {
+          syntax: '{{#array}}content{{/array}}',
+          examples: [
+            '{{#experiences}}[JOB_TITLE] at [COMPANY]{{/experiences}}',
+            '{{#skills}}• [SKILL]{{/skills}}'
+          ],
+          available_arrays: ['experiences', 'education', 'skills', 'projects', 'languages', 'certifications', 'achievements']
+        },
+        conditionals: {
+          syntax: '{{#if condition}}content{{/if condition}}',
+          examples: [
+            '{{#if has_experiences}}Experience:{{/if has_experiences}}',
+            '{{#if not_empty_certifications}}Certifications:{{/if not_empty_certifications}}'
+          ],
+          available_conditions: [
+            'has_experiences', 'has_education', 'has_skills',
+            'has_certifications', 'has_projects', 'has_languages',
+            'not_empty_[field]'
+          ]
+        },
+        formatting: {
+          line_breaks: 'Use \\n for new lines',
+          bullets: 'Use • character for bullet points',
+          sections: 'Empty sections are automatically removed'
+        }
+      },
+      examples: examples
+    });
+    
+  } catch (error) {
+    console.error("❌ Documentation error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+export const testAdvancedTemplate = async (req, res) => {
+  try {
+    // Test template with sample data
+    const sampleData = {
+      personal: {
+        name: "John Doe",
+        email: "john@example.com",
+        phone: "+1234567890",
+        title: "Senior Developer"
+      },
+      summary: "Experienced developer",
+      skills: ["JavaScript", "React", "Node.js", "Python", "AWS"],
+      experiences: [
+        {
+          job_title: "Senior Developer",
+          company: "Tech Corp",
+          duration: "2020-Present",
+          location: "San Francisco",
+          achievements: ["Built scalable systems", "Led team of 5"]
+        },
+        {
+          job_title: "Developer",
+          company: "Startup Inc",
+          duration: "2018-2020",
+          location: "New York",
+          achievements: ["Developed MVP", "Improved performance"]
+        }
+      ],
+      education: [
+        {
+          degree: "BS Computer Science",
+          institution: "MIT",
+          year: "2018",
+          location: "Cambridge"
+        }
+      ],
+      has_experiences: true,
+      has_education: true,
+      has_skills: true,
+      generatedDate: "December 3, 2025"
+    };
+    
+    // Create test template
+    const testTemplate = `
+{{#if has_experiences}}
+[NAME] - [TITLE]
+{{/if has_experiences}}
+
+Email: [EMAIL]
+Phone: [PHONE]
+
+{{#if has_skills}}
+Skills (Categorized):
+[SKILLS_BY_CATEGORY]
+{{/if has_skills}}
+
+{{#if has_experiences}}
+Experience Summary: [EXPERIENCE_SUMMARY]
+
+All Experiences:
+[ALL_EXPERIENCES]
+
+Detailed with Loops:
+{{#experiences}}
+[INDEX]. [JOB_TITLE] at [COMPANY] ([DURATION])
+{{#achievements}}
+  • [ACHIEVEMENT]
+{{/achievements}}
+{{/experiences}}
+{{/if has_experiences}}
+
+{{#if has_education}}
+Education:
+[ALL_EDUCATION]
+{{/if has_education}}
+
+Generated: [DATE]
+`;
+    
+    // Process the template
+    const zip = new JSZip();
+    const xmlContent = `<w:document>${testTemplate}</w:document>`;
+    zip.file('word/document.xml', xmlContent);
+    
+    const processed = await docxTemplateService.processWithAdvancedFeatures(
+      xmlContent,
+      sampleData
+    );
+    
+    // Extract result
+    const result = processed.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    
+    return res.json({
+      success: true,
+      testData: sampleData,
+      template: testTemplate,
+      processedResult: result,
+      featuresTested: [
+        "Conditionals",
+        "Advanced Placeholders",
+        "Loops",
+        "Nested Loops",
+        "Array Processing"
+      ]
+    });
+    
+  } catch (error) {
+    console.error("❌ Test error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
 
 export const generateDOCXFromTemplate = async (req, res) => {
   let cvFilePath = null;
