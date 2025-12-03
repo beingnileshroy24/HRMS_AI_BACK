@@ -22,13 +22,15 @@
     "express": "^4.18.2",
     "handlebars": "^4.7.8",
     "html-pdf": "^3.0.1",
+    "jszip": "^3.10.1",
     "libreoffice-convert": "^1.7.0",
     "mammoth": "^1.6.0",
     "multer": "^2.0.2",
     "pdf-lib": "^1.17.1",
     "pdf2json": "^3.1.6",
     "pdfkit": "^0.17.2",
-    "pizzip": "^3.2.0"
+    "pizzip": "^3.2.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

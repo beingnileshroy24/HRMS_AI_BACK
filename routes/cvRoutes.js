@@ -1,12 +1,12 @@
-// routes/cvRoutes.js
+// routes/cvRoutes.js - Updated for DOCX
 import express from "express";
 import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { 
   extractCVData, 
   generateFormattedCV, 
-  processCVWithTemplate, 
   evaluateCVQuality,
-  generateProfessionalCV,
   getAllParsedData,
   getParsedDataById,
   searchParsedData,
@@ -15,52 +15,108 @@ import {
 } from "../controllers/cvController.js";
 
 import { 
-  generatePDFFromTemplate,
-  generatePDFFromExtractedData,
+  generateDOCXFromTemplate,
+  generateDOCXFromExtractedData,
   downloadSampleTemplate,
-  testPDFEndpoint
+  testDOCXEndpoint,
+  uploadTemplateOnly
 } from "../controllers/templatePdfController.js";
 
 const router = express.Router();
 
-// Configure multer for file uploads
-const upload = multer({ 
-  dest: "uploads/",
+// Create uploads directory if it doesn't exist
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Configure multer for CV uploads only (PDF, images, text)
+const cvUpload = multer({ 
+  dest: uploadsDir,
   limits: {
-    fileSize: 10 * 1024 * 1024,
+    fileSize: 10 * 1024 * 1024, // 10MB
   },
   fileFilter: (req, file, cb) => {
+    // Allow CV files: PDF, images, text
     if (file.mimetype.includes('pdf') || 
-        file.mimetype.includes('word') || 
-        file.mimetype.includes('officedocument') ||
         file.mimetype.includes('image') ||
         file.mimetype.includes('text') ||
-        file.originalname.match(/\.(pdf|doc|docx|jpg|jpeg|png|txt|html)$/i)) {
+        file.originalname.match(/\.(pdf|jpg|jpeg|png|txt)$/i)) {
       cb(null, true);
     } else {
-      cb(new Error('Only PDF, DOCX, Image, Text, and HTML files are allowed'), false);
+      cb(new Error('Only PDF, Image (JPG/PNG), and Text files are allowed for CV upload'), false);
     }
   }
 });
 
-const uploadSingle = upload.single("cv");
-const uploadFields = upload.fields([
-  { name: 'cv', maxCount: 1 },
-  { name: 'template', maxCount: 1 }
-]);
-
 // CV Extraction & Generation endpoints
-router.post("/extract", uploadSingle, extractCVData);
-router.post("/generate-cv", generateFormattedCV);
-router.post("/generate-professional-cv", generateProfessionalCV);
-router.post("/process-with-template", uploadFields, processCVWithTemplate);
+router.post("/extract", cvUpload.single("cv"), extractCVData);
 router.post("/evaluate", evaluateCVQuality);
 
-// PDF Template endpoints
-router.post("/generate-pdf-template", uploadFields, generatePDFFromTemplate);
-router.post("/generate-pdf-from-data", generatePDFFromExtractedData);
-router.get("/template/sample", downloadSampleTemplate);
-router.get("/test-pdf", testPDFEndpoint);
+// DOCX Template endpoints
+router.post("/generate-docx", cvUpload.single("cv"), async (req, res) => {
+  // This will use default template
+  req.files = { cv: [req.file] };
+  await generateDOCXFromTemplate(req, res);
+});
+
+router.post("/generate-docx-with-template", 
+  multer({ 
+    dest: uploadsDir,
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.fieldname === 'cv') {
+        // CV files: PDF, images, text
+        if (file.mimetype.includes('pdf') || 
+            file.mimetype.includes('image') ||
+            file.mimetype.includes('text') ||
+            file.originalname.match(/\.(pdf|jpg|jpeg|png|txt)$/i)) {
+          cb(null, true);
+        } else {
+          cb(new Error('CV must be PDF, Image, or Text file'), false);
+        }
+      } else if (file.fieldname === 'template') {
+        // Template must be DOCX
+        if (file.mimetype.includes('officedocument.wordprocessingml') ||
+            file.originalname.match(/\.(docx)$/i)) {
+          cb(null, true);
+        } else {
+          cb(new Error('Template must be DOCX file. Download sample and convert to DOCX.'), false);
+        }
+      } else {
+        cb(new Error('Invalid field name'), false);
+      }
+    }
+  }).fields([
+    { name: 'cv', maxCount: 1 },
+    { name: 'template', maxCount: 1 }
+  ]), 
+  generateDOCXFromTemplate
+);
+
+// Generate DOCX from already extracted data (no uploads)
+router.post("/generate-docx-from-data", generateDOCXFromExtractedData);
+
+// Template management endpoints
+router.get("/template/sample", downloadSampleTemplate); // Download HTML sample
+router.post("/upload-template", 
+  multer({ 
+    dest: uploadsDir,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.includes('officedocument.wordprocessingml') ||
+          file.originalname.match(/\.(docx)$/i)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only DOCX files are allowed'), false);
+      }
+    }
+  }).single("template"), 
+  uploadTemplateOnly
+);
+
+// Test endpoint
+router.get("/test-docx", testDOCXEndpoint);
 
 // Data Management endpoints
 router.get("/data", getAllParsedData);
