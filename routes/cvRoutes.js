@@ -19,7 +19,8 @@ import {
   generateDOCXFromExtractedData,
   downloadSampleTemplate,
   testDOCXEndpoint,
-  uploadTemplateOnly
+  uploadTemplateOnly,
+  debugDOCXTemplate
 } from "../controllers/templatePdfController.js";
 
 const router = express.Router();
@@ -124,5 +125,21 @@ router.get("/data/stats", getParsedDataStats);
 router.get("/data/search", searchParsedData);
 router.get("/data/:id", getParsedDataById);
 router.delete("/data/:id", deleteParsedData);
+
+router.post("/debug-template", 
+  multer({ 
+    dest: uploadsDir,
+    limits: { fileSize: 5 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.includes('officedocument.wordprocessingml') ||
+          file.originalname.match(/\.(docx)$/i)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only DOCX files are allowed'), false);
+      }
+    }
+  }).single("template"), 
+  debugDOCXTemplate
+);
 
 export default router;

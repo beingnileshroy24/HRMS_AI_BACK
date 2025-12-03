@@ -1,8 +1,9 @@
-// controllers/templatePdfController.js
+// controllers/templatePdfController.js - FIXED VERSION
 import { geminiVisionParser } from '../utils/geminiVisionParser.js';
-import { docxTemplateService } from '../services/docxTemplateService.js'; // Changed to new service
+import { docxTemplateService } from '../services/docxTemplateService.js';
 import { getSampleTemplateHTML } from '../templates/sampleTemplate.js';
 import fs from 'fs';
+import JSZip from 'jszip';
 
 export const generateDOCXFromTemplate = async (req, res) => {
   let cvFilePath = null;
@@ -33,52 +34,46 @@ export const generateDOCXFromTemplate = async (req, res) => {
       extractedData = getSampleCVData();
     }
 
-    // 2. Prepare template data
+    // 2. Prepare template data using the service
     const templateData = docxTemplateService.prepareTemplateData(extractedData);
-    console.log("📊 Template data prepared:", Object.keys(templateData));
+    console.log("📊 Template data prepared");
 
     // 3. Check if template was uploaded
     let docxBuffer;
     
-    // In your controller, update the try-catch block for template processing:
-if (req.files['template'] && req.files['template'][0]) {
-  const templateFile = req.files['template'][0];
-  templateFilePath = templateFile.path;
-  const fileExt = templateFile.originalname.split('.').pop().toLowerCase();
-  
-  if (fileExt === 'docx') {
-    console.log("📝 Using uploaded DOCX template");
-    console.log("📄 Template file size:", templateFile.size, "bytes");
-    
-    const templateBuffer = fs.readFileSync(templateFilePath);
-    
-    // First, verify the DOCX is valid
-    try {
-      const zip = await JSZip.loadAsync(templateBuffer);
-      const files = Object.keys(zip.files);
-      console.log("✅ DOCX loaded successfully, contains", files.length, "files");
+    if (req.files['template'] && req.files['template'][0]) {
+      const templateFile = req.files['template'][0];
+      templateFilePath = templateFile.path;
+      const fileExt = templateFile.originalname.split('.').pop().toLowerCase();
       
-      if (!zip.file('word/document.xml')) {
-        throw new Error('Invalid DOCX: missing document.xml');
+      if (fileExt === 'docx') {
+        console.log("📝 Using uploaded DOCX template");
+        console.log("📄 Template file size:", templateFile.size, "bytes");
+        
+        const templateBuffer = fs.readFileSync(templateFilePath);
+        
+        try {
+          // Use the fixed DOCX template service
+          docxBuffer = await docxTemplateService.processDOCXTemplate(
+            templateBuffer, 
+            templateData
+          );
+          console.log("✅ Template processed successfully, output size:", docxBuffer.length, "bytes");
+        } catch (templateError) {
+          console.error("❌ Template processing failed:", templateError.message);
+          
+          // Fallback to simple DOCX
+          console.log("📝 Falling back to simple DOCX...");
+          docxBuffer = await createSimpleDOCX(templateData);
+        }
+      } else {
+        throw new Error('Only DOCX templates are supported for upload. Please convert your template to DOCX format.');
       }
-      
-      // Process the template
-      docxBuffer = await docxTemplateService.processDOCXTemplate(
-        templateBuffer, 
-        templateData
-      );
-      
-      console.log("✅ DOCX processed successfully, output size:", docxBuffer.length, "bytes");
-      
-    } catch (templateError) {
-      console.error("❌ Template processing failed:", templateError.message);
-      
+    } else {
+      console.log("📝 No template uploaded, creating simple DOCX");
       // Create a simple DOCX with the data
-      console.log("📝 Creating simple DOCX instead...");
       docxBuffer = await createSimpleDOCX(templateData);
     }
-  }
-}
 
     // 4. Clean up files
     cleanupFiles(cvFilePath, templateFilePath);
@@ -102,7 +97,7 @@ if (req.files['template'] && req.files['template'][0]) {
     console.error("❌ DOCX generation error:", error);
     
     return res.status(500).json({ 
-      error: error.message 
+      error: error.message || "Unknown error occurred during DOCX generation"
     });
   }
 };
@@ -151,6 +146,8 @@ export const downloadSampleTemplate = async (req, res) => {
 };
 
 export const uploadTemplateOnly = async (req, res) => {
+  let templateFilePath = null;
+  
   try {
     if (!req.files || !req.files['template']) {
       return res.status(400).json({ 
@@ -159,11 +156,10 @@ export const uploadTemplateOnly = async (req, res) => {
     }
 
     const templateFile = req.files['template'][0];
-    const templateFilePath = templateFile.path;
+    templateFilePath = templateFile.path;
     const fileExt = templateFile.originalname.split('.').pop().toLowerCase();
     
     if (fileExt !== 'docx') {
-      cleanupFiles(null, templateFilePath);
       throw new Error('Only DOCX files are supported. Please convert your template to DOCX format.');
     }
     
@@ -173,14 +169,18 @@ export const uploadTemplateOnly = async (req, res) => {
     }
     
     // Try to read the file to ensure it's a valid DOCX
+    const templateBuffer = fs.readFileSync(templateFilePath);
+    if (templateBuffer.length === 0) {
+      throw new Error('Template file is empty');
+    }
+    
+    // Test if it's a valid ZIP (DOCX is a ZIP file)
     try {
-      const templateBuffer = fs.readFileSync(templateFilePath);
-      if (templateBuffer.length === 0) {
-        throw new Error('Template file is empty');
-      }
-      console.log("✅ Template validated successfully");
-    } catch (readError) {
-      throw new Error(`Invalid template file: ${readError.message}`);
+      const zip = new JSZip();
+      await zip.loadAsync(templateBuffer);
+      console.log("✅ Template validated successfully as DOCX");
+    } catch (zipError) {
+      throw new Error(`Invalid DOCX file: ${zipError.message}`);
     }
     
     // Clean up file
@@ -191,18 +191,26 @@ export const uploadTemplateOnly = async (req, res) => {
       message: "Template uploaded and validated successfully. Use this template with CV file upload.",
       templateName: templateFile.originalname,
       fileSize: templateFile.size,
-      instructions: "Upload this template along with a CV file to generate a customized DOCX CV."
+      instructions: "Upload this template along with a CV file to generate a customized DOCX CV.",
+      templatePlaceholders: {
+        recommended: "Use placeholders like [NAME], [EMAIL], [PHONE], [SUMMARY], etc.",
+        format: "Placeholders should be in square brackets: [PLACEHOLDER_NAME]",
+        example: "For name use: [NAME], for email use: [EMAIL]"
+      }
     });
     
   } catch (error) {
     // Clean up on error
-    if (req.files && req.files['template'] && req.files['template'][0]) {
-      const templateFilePath = req.files['template'][0].path;
+    if (templateFilePath && fs.existsSync(templateFilePath)) {
       cleanupFiles(null, templateFilePath);
     }
     
     console.error("❌ Template upload error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ 
+      success: false,
+      error: error.message,
+      help: "Make sure your file is a valid DOCX file with placeholders in square brackets like [NAME], [EMAIL], etc."
+    });
   }
 };
 
@@ -220,10 +228,88 @@ export const testDOCXEndpoint = async (req, res) => {
         uploadTemplate: "POST /api/cv/upload-template",
         test: "GET /api/cv/test-docx"
       },
-      note: "Templates must be DOCX format. Placeholders like {{personal.name}} will be replaced with actual data."
+      requirements: {
+        templates: "Must be DOCX format",
+        placeholders: "Use [NAME], [EMAIL], [PHONE], etc. in your template",
+        cvFormats: "PDF, DOCX, or images"
+      }
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+// Debug endpoint for templates
+export const debugDOCXTemplate = async (req, res) => {
+  let templateFilePath = null;
+
+  try {
+    if (!req.files || !req.files['template']) {
+      return res.status(400).json({ 
+        error: "Template file is required" 
+      });
+    }
+
+    const templateFile = req.files['template'][0];
+    templateFilePath = templateFile.path;
+    
+    console.log("🔍 DEBUG: Analyzing DOCX template...");
+    console.log("📄 File:", templateFile.originalname);
+    console.log("📊 Size:", templateFile.size, "bytes");
+    
+    const templateBuffer = fs.readFileSync(templateFilePath);
+    const zip = new JSZip();
+    await zip.loadAsync(templateBuffer);
+    
+    // Get the main document XML
+    const documentXml = await zip.file('word/document.xml').async('text');
+    
+    // Extract all text from the XML
+    const textContent = extractTextFromXML(documentXml);
+    
+    // Look for placeholder patterns
+    const placeholderPatterns = findPlaceholderPatterns(documentXml);
+    
+    // Also check for specific patterns from sample template
+    const samplePatterns = [
+      '[NAME]', '[EMAIL]', '[PHONE]', '[LOCATION]', '[LINKEDIN]',
+      '[PORTFOLIO]', '[SUMMARY]', '[SKILLS]', '[JOB_TITLE]', '[COMPANY]',
+      '[DURATION]', '[JOB_LOCATION]', '[ACHIEVEMENTS]', '[DEGREE]',
+      '[INSTITUTION]', '[YEAR]', '[EDUCATION_LOCATION]', '[CERTIFICATIONS]',
+      '[LANGUAGES]', '[PROJECTS]', '[DATE]'
+    ];
+    
+    const foundSamplePatterns = samplePatterns.filter(pattern => 
+      documentXml.includes(pattern)
+    );
+    
+    return res.json({
+      success: true,
+      filename: templateFile.originalname,
+      fileSize: templateFile.size,
+      textPreview: textContent.substring(0, 1000),
+      placeholderPatterns: placeholderPatterns,
+      foundSamplePlaceholders: foundSamplePatterns,
+      note: "Your template should contain placeholders like [NAME], [EMAIL], etc.",
+      analysis: {
+        isValid: templateFile.size > 100, // Basic validation
+        hasPlaceholders: foundSamplePatterns.length > 0,
+        recommendation: foundSamplePatterns.length === 0 
+          ? "No standard placeholders found. Please add [NAME], [EMAIL], etc. to your template."
+          : "Template looks good! Found " + foundSamplePatterns.length + " standard placeholders."
+      }
+    });
+    
+  } catch (error) {
+    console.error("❌ Debug error:", error);
+    return res.status(500).json({ 
+      error: error.message,
+      help: "Make sure you're uploading a valid DOCX file"
+    });
+  } finally {
+    if (templateFilePath && fs.existsSync(templateFilePath)) {
+      cleanupFiles(null, templateFilePath);
+    }
   }
 };
 
@@ -250,7 +336,6 @@ const extractCVDataFromFile = async (cvFile, cvFilePath) => {
     }
   } catch (error) {
     console.error("❌ Gemini parsing failed:", error.message);
-    // Re-throw the error to be handled by the caller
     throw error;
   }
 };
@@ -274,88 +359,63 @@ const cleanupFiles = (cvFilePath, templateFilePath) => {
   }
 };
 
-const debugDOCXTemplate = async (templateBuffer) => {
-  try {
-    const zip = await JSZip.loadAsync(templateBuffer);
-    const documentXml = await zip.file('word/document.xml').async('text');
-    
-    // Look for common Word XML patterns that might contain our placeholders
-    console.log("🔍 DEBUG: Analyzing DOCX structure...");
-    
-    // Search for placeholders in various forms
-    const searchPatterns = [
-      { name: "Double curly braces", pattern: /{{[^}]+}}/g },
-      { name: "Field codes", pattern: /MERGEFIELD/g },
-      { name: "Plain text", pattern: /personal|name|email|phone|skills|experience/g }
-    ];
-    
-    searchPatterns.forEach(({ name, pattern }) => {
-      const matches = documentXml.match(pattern);
-      if (matches) {
-        console.log(`📌 Found ${matches.length} ${name} patterns`);
-        console.log("   Sample:", matches.slice(0, 3).join(", "));
-      }
-    });
-    
-    // Show a sample of the XML
-    const sample = documentXml.substring(0, 500);
-    console.log("📋 XML Sample (first 500 chars):");
-    console.log(sample);
-    
-    return documentXml;
-  } catch (error) {
-    console.error("❌ DEBUG error:", error.message);
-    return null;
-  }
-};
-
-
 const generateFileName = (extractedData, extension) => {
-  const name = extractedData.personal_info?.full_name?.replace(/\s+/g, '_') || 'Generated';
-  const timestamp = Date.now();
-  return `CV_${name}_${timestamp}.${extension}`;
+  const name = extractedData.personal_info?.full_name?.replace(/\s+/g, '_') || 'Generated_CV';
+  const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  return `${name}_${timestamp}.${extension}`;
 };
 
-// Create simple DOCX (fallback when template processing fails)
-// Update the createSimpleDOCX function in controller:
+/**
+ * Create a simple DOCX (HTML that Word can open)
+ */
 async function createSimpleDOCX(data) {
   console.log("📝 Creating simple DOCX with data...");
   
-  // Create a minimal HTML that will work when opened in Word
+  // Create an HTML that Word can open
   const htmlContent = `
 <!DOCTYPE html>
-<html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns:m="http://schemas.microsoft.com/office/2004/12/omml" xmlns="http://www.w3.org/TR/REC-html40">
 <head>
   <meta charset="UTF-8">
+  <meta name="ProgId" content="Word.Document">
+  <meta name="Generator" content="Microsoft Word 15">
+  <meta name="Originator" content="Microsoft Word 15">
   <title>${data.personal.name || 'CV'}</title>
   <style>
     body {
       font-family: 'Calibri', 'Arial', sans-serif;
-      line-height: 1.5;
-      color: #000000;
-      margin: 1in;
+      font-size: 11pt;
+      line-height: 1.15;
+      margin: 0.5in;
     }
     h1 {
       color: #2c5282;
-      font-size: 24pt;
-      margin-bottom: 0.5in;
-      border-bottom: 2px solid #2c5282;
-      padding-bottom: 0.2in;
+      font-size: 20pt;
+      margin-bottom: 12pt;
+      border-bottom: 1pt solid #2c5282;
+      padding-bottom: 6pt;
+    }
+    h2 {
+      color: #2c5282;
+      font-size: 14pt;
+      margin-top: 18pt;
+      margin-bottom: 6pt;
+      border-bottom: 0.5pt solid #cccccc;
+      padding-bottom: 3pt;
     }
     .contact-info {
-      margin-bottom: 0.3in;
+      margin-bottom: 12pt;
       color: #666666;
     }
     .section {
-      margin-bottom: 0.3in;
+      margin-bottom: 12pt;
     }
-    .section-title {
-      font-size: 14pt;
-      font-weight: bold;
-      color: #2c5282;
-      margin-bottom: 0.1in;
-      border-bottom: 1px solid #cccccc;
-      padding-bottom: 0.05in;
+    ul {
+      margin-top: 3pt;
+      margin-bottom: 3pt;
+    }
+    li {
+      margin-bottom: 3pt;
     }
   </style>
 </head>
@@ -372,25 +432,25 @@ async function createSimpleDOCX(data) {
   
   ${data.summary ? `
   <div class="section">
-    <div class="section-title">PROFESSIONAL SUMMARY</div>
+    <h2>PROFESSIONAL SUMMARY</h2>
     <p>${data.summary}</p>
   </div>` : ''}
   
   ${data.skills && data.skills.length > 0 ? `
   <div class="section">
-    <div class="section-title">SKILLS</div>
+    <h2>SKILLS</h2>
     <p>${data.skills.join(', ')}</p>
   </div>` : ''}
   
   ${data.experiences && data.experiences.length > 0 ? `
   <div class="section">
-    <div class="section-title">WORK EXPERIENCE</div>
+    <h2>WORK EXPERIENCE</h2>
     ${data.experiences.map(exp => `
-      <div style="margin-bottom: 0.2in;">
+      <div style="margin-bottom: 12pt;">
         <div style="font-weight: bold;">${exp.job_title}</div>
         <div style="color: #666666;">${exp.company} | ${exp.duration} | ${exp.location}</div>
         ${exp.achievements && exp.achievements.length > 0 ? `
-          <ul style="margin-top: 0.1in; padding-left: 0.2in;">
+          <ul style="margin-top: 6pt;">
             ${exp.achievements.map(ach => `<li>${ach}</li>`).join('')}
           </ul>
         ` : ''}
@@ -400,24 +460,125 @@ async function createSimpleDOCX(data) {
   
   ${data.education && data.education.length > 0 ? `
   <div class="section">
-    <div class="section-title">EDUCATION</div>
+    <h2>EDUCATION</h2>
     ${data.education.map(edu => `
-      <div style="margin-bottom: 0.1in;">
+      <div style="margin-bottom: 6pt;">
         <div style="font-weight: bold;">${edu.degree}</div>
         <div style="color: #666666;">${edu.institution} | ${edu.year} | ${edu.location}</div>
       </div>
     `).join('')}
   </div>` : ''}
   
-  <div style="margin-top: 0.5in; padding-top: 0.1in; border-top: 1px solid #cccccc; color: #999999; font-size: 10pt;">
+  ${data.certifications && data.certifications.length > 0 ? `
+  <div class="section">
+    <h2>CERTIFICATIONS</h2>
+    <p>${data.certifications.join(', ')}</p>
+  </div>` : ''}
+  
+  ${data.languages && data.languages.length > 0 ? `
+  <div class="section">
+    <h2>LANGUAGES</h2>
+    <p>${data.languages.join(', ')}</p>
+  </div>` : ''}
+  
+  ${data.projects && data.projects.length > 0 ? `
+  <div class="section">
+    <h2>PROJECTS</h2>
+    <p>${data.projects.join(', ')}</p>
+  </div>` : ''}
+  
+  <div style="margin-top: 24pt; padding-top: 6pt; border-top: 0.5pt solid #cccccc; color: #999999; font-size: 9pt;">
     Generated on ${data.generatedDate}
   </div>
 </body>
 </html>`;
   
-  console.log("✅ Simple DOCX created, size:", htmlContent.length, "chars");
+  console.log("✅ Simple DOCX created");
   return Buffer.from(htmlContent, 'utf8');
 }
+
+// Add this endpoint to your templatePdfController.js
+export const testDataFlow = async (req, res) => {
+  let cvFilePath = null;
+  
+  try {
+    if (!req.files || !req.files['cv']) {
+      return res.status(400).json({ error: "CV file required" });
+    }
+    
+    const cvFile = req.files['cv'][0];
+    cvFilePath = cvFile.path;
+    
+    // Extract data from CV
+    const extractedData = await extractCVDataFromFile(cvFile, cvFilePath);
+    
+    // Prepare template data
+    const templateData = docxTemplateService.prepareTemplateData(extractedData);
+    
+    // Clean up
+    cleanupFiles(cvFilePath, null);
+    
+    return res.json({
+      success: true,
+      extractedData: {
+        personal_info: extractedData.personal_info,
+        skills: extractedData.skills,
+        experience: extractedData.experience?.slice(0, 1),
+        education: extractedData.education?.slice(0, 1)
+      },
+      templateData: templateData,
+      placeholders: {
+        '[NAME]': templateData.personal.name,
+        '[EMAIL]': templateData.personal.email,
+        '[PHONE]': templateData.personal.phone,
+        '[SKILLS]': templateData.skills.join(', '),
+        '[JOB_TITLE]': templateData.experiences[0]?.job_title || '',
+        '[COMPANY]': templateData.experiences[0]?.company || '',
+        '[DURATION]': templateData.experiences[0]?.duration || ''
+      }
+    });
+    
+  } catch (error) {
+    cleanupFiles(cvFilePath, null);
+    console.error("❌ Test error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+/**
+ * Extract text from XML
+ */
+const extractTextFromXML = (xmlText) => {
+  let text = '';
+  const regex = /<w:t[^>]*>([^<]+)<\/w:t>/g;
+  let match;
+  while ((match = regex.exec(xmlText)) !== null) {
+    text += match[1] + ' ';
+  }
+  return text.trim();
+};
+
+/**
+ * Find placeholder patterns in XML for debugging
+ */
+const findPlaceholderPatterns = (xmlText) => {
+  const patterns = [
+    { name: "Bracketed placeholders ([NAME])", regex: /\[([^\]]+)\]/g },
+    { name: "Curly brace placeholders ({{NAME}})", regex: /\{\{([^}]+)\}\}/g },
+    { name: "Angle bracket placeholders (<NAME>)", regex: /<([^>]+)>/g },
+    { name: "Dollar placeholders ($NAME$)", regex: /\$([^$]+)\$/g }
+  ];
+  
+  const results = {};
+  patterns.forEach(({ name, regex }) => {
+    const matches = xmlText.match(regex);
+    if (matches) {
+      results[name] = [...new Set(matches)].slice(0, 20);
+    }
+  });
+  
+  return results;
+};
 
 // Sample data for testing (when Gemini is overloaded)
 function getSampleCVData() {

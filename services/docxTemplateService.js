@@ -1,262 +1,185 @@
-// services/docxTemplateService.js - SIMPLIFIED VERSION
+// services/docxTemplateService.js - IMPROVED VERSION WITH BETTER XML PARSING
 import JSZip from 'jszip';
 
 export class DOCXTemplateService {
   
   constructor() {
-    // Simple constructor
+    this.placeholderMap = new Map();
   }
 
   /**
-   * Simple and reliable DOCX template processing
+   * Process DOCX template by extracting and modifying XML
    */
   async processDOCXTemplate(docxBuffer, data) {
     try {
-      console.log("🔄 Processing DOCX template (simple method)...");
+      console.log("🔄 Processing DOCX template...");
       
       // Load the DOCX file
-      const zip = await JSZip.loadAsync(dxBuffer);
+      const zip = new JSZip();
+      await zip.loadAsync(docxBuffer);
       
       // Get the main document XML
-      let documentXml = await zip.file('word/document.xml').async('text');
+      const documentXml = await zip.file('word/document.xml').async('text');
       
-      console.log("📄 Document XML loaded, length:", documentXml.length);
+      console.log("📄 Document XML loaded");
       
-      // Get all replacements
-      const replacements = this.getAllReplacements(data);
+      // Build comprehensive replacement map
+      const replacements = this.buildReplacementMap(data);
       
-      // Perform replacements
-      documentXml = this.performReplacements(documentXml, replacements);
+      // Perform XML-aware replacement
+      const modifiedXml = this.replacePlaceholdersInXML(documentXml, replacements);
       
-      // Update the ZIP
-      zip.file('word/document.xml', documentXml);
+      // Update the ZIP with modified document
+      zip.file('word/document.xml', modifiedXml);
       
-      // Generate new DOCX
-      const newDocxBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+      // Generate the new DOCX buffer
+      const newDocxBuffer = await zip.generateAsync({ 
+        type: 'nodebuffer',
+        compression: 'DEFLATE'
+      });
       
-      console.log("✅ DOCX processed successfully");
+      console.log("✅ DOCX template processed successfully");
       return newDocxBuffer;
       
     } catch (error) {
-      console.error('DOCX processing error:', error);
-      // Create a simple DOCX as fallback
-      return this.createSimpleDOCX(data);
+      console.error('❌ DOCX processing error:', error);
+      throw error;
     }
   }
 
   /**
-   * Perform text replacements safely
+   * Build comprehensive replacement map
    */
-  performReplacements(xmlText, replacements) {
-    console.log("🔍 Performing text replacements...");
+  buildReplacementMap(data) {
+    const replacements = {};
     
-    let result = xmlText;
-    let totalReplacements = 0;
+    // Personal Info - ONLY use parsed data, no defaults
+    replacements['[NAME]'] = data.personal?.name || '';
+    replacements['[EMAIL]'] = data.personal?.email || '';
+    replacements['[PHONE]'] = data.personal?.phone || '';
+    replacements['[LOCATION]'] = data.personal?.location || '';
+    replacements['[LINKEDIN]'] = data.personal?.linkedin || '';
+    replacements['[PORTFOLIO]'] = data.personal?.portfolio || '';
     
-    // First, try to find what placeholders actually exist in the document
-    console.log("📋 Searching for placeholders in document...");
+    // Summary
+    replacements['[SUMMARY]'] = data.summary || '';
     
-    // List of placeholder patterns to search for
-    const searchPatterns = [
-      /\[[A-Z_]+\]/g,        // [UPPERCASE_WORDS]
-      /\{\{[A-Z_]+\}\}/g,    // {{UPPERCASE_WORDS}}
-      /\[[a-zA-Z_]+\]/g,     // [mixedCase]
-      /\{\{[a-zA-Z_]+\}\}/g  // {{mixedCase}}
-    ];
+    // Skills
+    replacements['[SKILLS]'] = Array.isArray(data.skills) ? 
+      data.skills.join(', ') : '';
     
-    // Find all unique placeholders
-    const foundPlaceholders = new Set();
-    searchPatterns.forEach(pattern => {
-      const matches = xmlText.match(pattern);
-      if (matches) {
-        matches.forEach(match => foundPlaceholders.add(match));
+    // Work Experience - first experience
+    const firstExp = data.experiences?.[0] || {};
+    replacements['[JOB_TITLE]'] = firstExp.job_title || '';
+    replacements['[COMPANY]'] = firstExp.company || '';
+    replacements['[DURATION]'] = firstExp.duration || '';
+    replacements['[JOB_LOCATION]'] = firstExp.location || '';
+    replacements['[ACHIEVEMENTS]'] = Array.isArray(firstExp.achievements) ? 
+      firstExp.achievements.map(ach => `• ${ach}`).join('\n') : '';
+    
+    // Education - first education
+    const firstEdu = data.education?.[0] || {};
+    replacements['[DEGREE]'] = firstEdu.degree || '';
+    replacements['[INSTITUTION]'] = firstEdu.institution || '';
+    replacements['[YEAR]'] = firstEdu.year || '';
+    replacements['[EDUCATION_LOCATION]'] = firstEdu.location || '';
+    
+    // Others
+    replacements['[CERTIFICATIONS]'] = Array.isArray(data.certifications) ? 
+      data.certifications.join(', ') : '';
+    replacements['[LANGUAGES]'] = Array.isArray(data.languages) ? 
+      data.languages.join(', ') : '';
+    replacements['[PROJECTS]'] = Array.isArray(data.projects) ? 
+      data.projects.join('\n') : '';
+    replacements['[DATE]'] = data.generatedDate || '';
+    
+    // Log what we have
+    console.log("🔄 Will replace these placeholders:");
+    Object.entries(replacements).forEach(([key, value]) => {
+      if (value && value.trim()) {
+        console.log(`   ${key} → "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+      } else {
+        console.log(`   ${key} → (EMPTY - will be removed)`);
       }
     });
     
-    console.log(`🔍 Found ${foundPlaceholders.size} unique placeholders:`);
-    foundPlaceholders.forEach(ph => console.log(`  - ${ph}`));
+    return replacements;
+  }
+
+  /**
+   * Replace placeholders in XML document
+   */
+  replacePlaceholdersInXML(xmlText, replacements) {
+    console.log("🔄 Replacing placeholders in XML...");
     
-    // Now perform replacements for each found placeholder
-    for (const placeholder of foundPlaceholders) {
-      // Extract the key from the placeholder (remove brackets/braces)
-      let key = placeholder.replace(/[\[\]{}]/g, '');
-      
-      // Try to find a replacement value
-      let value = this.findReplacementValue(key, replacements);
-      
-      if (value) {
-        // Escape the value for XML
-        const escapedValue = this.escapeXml(value);
-        
-        // Replace ALL occurrences of this exact placeholder
-        const regex = new RegExp(this.escapeRegex(placeholder), 'g');
-        const matches = result.match(regex);
-        
-        if (matches) {
-          result = result.replace(regex, escapedValue);
-          totalReplacements += matches.length;
-          console.log(`✅ Replaced ${matches.length}x "${placeholder}"`);
-        }
+    // Create a copy to work with
+    let result = xmlText;
+    
+    // First, let's see what the XML actually contains
+    const textContent = this.extractAllText(xmlText);
+    console.log("📋 Found text in template:", textContent.substring(0, 200));
+    
+    // Check for placeholders
+    Object.keys(replacements).forEach(placeholder => {
+      if (xmlText.includes(placeholder)) {
+        console.log(`✅ Found placeholder in XML: ${placeholder}`);
+      } else {
+        console.log(`❌ Placeholder NOT found: ${placeholder}`);
       }
-    }
+    });
     
-    console.log(`✅ Total replacements made: ${totalReplacements}`);
+    // Simple approach: Direct string replacement in the entire XML
+    // This works because DOCX XML is just text
+    Object.entries(replacements).forEach(([placeholder, value]) => {
+      if (value && value.trim()) {
+        // Only replace if we have data
+        if (result.includes(placeholder)) {
+          console.log(`   Replacing ${placeholder} with actual data`);
+          result = result.split(placeholder).join(this.escapeXml(value));
+        }
+      } else {
+        // Remove empty placeholders
+        console.log(`   Removing empty placeholder: ${placeholder}`);
+        result = this.removeEmptyPlaceholder(result, placeholder);
+      }
+    });
     
-    // If no replacements were made, log a warning
-    if (totalReplacements === 0) {
-      console.warn("⚠️ No placeholders were replaced. Showing XML sample:");
-      console.log(xmlText.substring(0, 500));
-    }
+    console.log("✅ XML processing complete");
+    return result;
+  }
+
+  /**
+   * Remove empty placeholder from XML
+   */
+  removeEmptyPlaceholder(xmlText, placeholder) {
+    // Pattern to find placeholder and its surrounding w:r block
+    const patterns = [
+      // Pattern 1: Placeholder in its own w:t tag
+      new RegExp(`<w:r[^>]*>\\s*<w:t[^>]*>\\s*${this.escapeRegex(placeholder)}\\s*</w:t>\\s*</w:r>`, 'gi'),
+      
+      // Pattern 2: Placeholder as part of text in w:t tag
+      new RegExp(`(${this.escapeRegex(placeholder)})`, 'g')
+    ];
+    
+    let result = xmlText;
+    patterns.forEach(pattern => {
+      result = result.replace(pattern, '');
+    });
     
     return result;
   }
 
   /**
-   * Find replacement value for a key
+   * Extract all text from XML for debugging
    */
-  findReplacementValue(key, replacements) {
-    // Try exact match first
-    if (replacements[key]) {
-      return replacements[key];
-    }
+  extractAllText(xmlText) {
+    // Remove XML tags to see plain text
+    let text = xmlText
+      .replace(/<[^>]+>/g, ' ')  // Replace tags with space
+      .replace(/\s+/g, ' ')      // Collapse multiple spaces
+      .trim();
     
-    // Try case-insensitive match
-    const upperKey = key.toUpperCase();
-    if (replacements[upperKey]) {
-      return replacements[upperKey];
-    }
-    
-    // Try to match common variations
-    const variations = {
-      'NAME': ['FULLNAME', 'FULL_NAME', 'PERSONAL_NAME'],
-      'EMAIL': ['EMAIL_ADDRESS', 'MAIL'],
-      'PHONE': ['PHONE_NUMBER', 'TELEPHONE', 'MOBILE'],
-      'LOCATION': ['ADDRESS', 'CITY', 'CITY_STATE'],
-      'SUMMARY': ['PROFESSIONAL_SUMMARY', 'PROFILE', 'OBJECTIVE'],
-      'SKILLS': ['TECHNICAL_SKILLS', 'COMPETENCIES'],
-      'JOB_TITLE': ['POSITION', 'ROLE', 'TITLE'],
-      'COMPANY': ['EMPLOYER', 'ORGANIZATION'],
-      'DURATION': ['PERIOD', 'DATE_RANGE', 'TIME_PERIOD'],
-      'JOB_LOCATION': ['WORK_LOCATION', 'OFFICE_LOCATION'],
-      'ACHIEVEMENTS': ['ACCOMPLISHMENTS', 'RESPONSIBILITIES'],
-      'DEGREE': ['QUALIFICATION', 'EDUCATION_DEGREE'],
-      'INSTITUTION': ['UNIVERSITY', 'COLLEGE', 'SCHOOL'],
-      'YEAR': ['GRADUATION_YEAR', 'GRAD_YEAR'],
-      'EDUCATION_LOCATION': ['SCHOOL_LOCATION', 'CAMPUS'],
-      'CERTIFICATIONS': ['CERTIFICATES', 'LICENSES'],
-      'LANGUAGES': ['LANGUAGE_SKILLS'],
-      'PROJECTS': ['PORTFOLIO_PROJECTS'],
-      'DATE': ['CURRENT_DATE', 'GENERATED_DATE']
-    };
-    
-    // Check if key matches any variation
-    for (const [standardKey, altKeys] of Object.entries(variations)) {
-      if (altKeys.includes(key.toUpperCase()) || key.toUpperCase() === standardKey) {
-        return replacements[standardKey];
-      }
-    }
-    
-    console.log(`⚠️ No replacement found for key: ${key}`);
-    return null;
-  }
-
-  /**
-   * Get all replacement values
-   */
-  getAllReplacements(data) {
-    const replacements = {
-      // Personal info - using sample data to ensure something gets replaced
-      'NAME': data.personal?.name || 'JOHN DOE',
-      'EMAIL': data.personal?.email || 'john.doe@example.com',
-      'PHONE': data.personal?.phone || '+1 234 567 8900',
-      'LOCATION': data.personal?.location || 'San Francisco, CA',
-      'LINKEDIN': data.personal?.linkedin || 'linkedin.com/in/johndoe',
-      'PORTFOLIO': data.personal?.portfolio || 'johndoeportfolio.com',
-      
-      // Summary
-      'SUMMARY': data.summary || 'Experienced software engineer with 5+ years in full-stack development.',
-      
-      // Skills
-      'SKILLS': data.skills?.join(', ') || 'JavaScript, React, Node.js, Python, AWS, Docker, Git',
-      
-      // Experience
-      'JOB_TITLE': data.experiences?.[0]?.job_title || 'Senior Software Engineer',
-      'COMPANY': data.experiences?.[0]?.company || 'Tech Innovations Inc.',
-      'DURATION': data.experiences?.[0]?.duration || '2020 - Present',
-      'JOB_LOCATION': data.experiences?.[0]?.location || 'San Francisco, CA',
-      'ACHIEVEMENTS': data.experiences?.[0]?.achievements?.join(' • ') || 'Led team of developers • Improved system performance',
-      
-      // Education
-      'DEGREE': data.education?.[0]?.degree || 'Bachelor of Science in Computer Science',
-      'INSTITUTION': data.education?.[0]?.institution || 'Stanford University',
-      'YEAR': data.education?.[0]?.year || '2016',
-      'EDUCATION_LOCATION': data.education?.[0]?.location || 'Stanford, CA',
-      
-      // Others
-      'CERTIFICATIONS': data.certifications?.join(', ') || 'AWS Certified Solutions Architect',
-      'LANGUAGES': data.languages?.join(', ') || 'English (Fluent), Spanish (Intermediate)',
-      'PROJECTS': data.projects?.join(', ') || 'E-commerce Platform, Mobile Banking App',
-      'DATE': data.generatedDate || new Date().toLocaleDateString()
-    };
-    
-    // Add uppercase versions of all keys
-    const upperReplacements = {};
-    Object.keys(replacements).forEach(key => {
-      upperReplacements[key.toUpperCase()] = replacements[key];
-    });
-    
-    return { ...replacements, ...upperReplacements };
-  }
-
-  /**
-   * Create a simple DOCX as fallback
-   */
-  createSimpleDOCX(data) {
-    console.log("📝 Creating simple DOCX as fallback...");
-    
-    const htmlContent = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>${data.personal?.name || 'CV'} - Generated CV</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; padding: 40px; }
-    h1 { color: #2c3e50; border-bottom: 2px solid #3498db; }
-    .section { margin-bottom: 25px; }
-  </style>
-</head>
-<body>
-  <h1>${data.personal?.name || 'Generated CV'}</h1>
-  
-  <div class="section">
-    <p><strong>Email:</strong> ${data.personal?.email || 'Not specified'}</p>
-    <p><strong>Phone:</strong> ${data.personal?.phone || 'Not specified'}</p>
-    <p><strong>Location:</strong> ${data.personal?.location || 'Not specified'}</p>
-  </div>
-  
-  ${data.summary ? `<div class="section"><h2>Summary</h2><p>${data.summary}</p></div>` : ''}
-  
-  ${data.skills?.length > 0 ? `
-  <div class="section">
-    <h2>Skills</h2>
-    <p>${data.skills.join(', ')}</p>
-  </div>` : ''}
-  
-  ${data.experiences?.length > 0 ? `
-  <div class="section">
-    <h2>Experience</h2>
-    ${data.experiences.map(exp => `
-      <h3>${exp.job_title}</h3>
-      <p><strong>${exp.company}</strong> | ${exp.duration} | ${exp.location}</p>
-      ${exp.achievements?.length > 0 ? `<ul>${exp.achievements.map(a => `<li>${a}</li>`).join('')}</ul>` : ''}
-    `).join('')}
-  </div>` : ''}
-  
-  <p><em>Generated on ${data.generatedDate}</em></p>
-</body>
-</html>`;
-    
-    return Buffer.from(htmlContent, 'utf8');
+    return text;
   }
 
   /**
@@ -280,87 +203,101 @@ export class DOCXTemplateService {
   }
 
   /**
-   * Prepare data for template
+   * Prepare data for template - NO DEFAULTS
    */
   prepareTemplateData(extractedData) {
-    console.log("📋 Preparing template data...");
+    console.log("📋 Preparing template data from extracted CV...");
     
-    // Use the extracted data or fallback to sample data
     const data = {
       personal: {
-        name: extractedData.personal_info?.full_name || 'John Doe',
-        email: extractedData.personal_info?.email || 'john.doe@example.com',
-        phone: extractedData.personal_info?.phone || '+1 234 567 8900',
-        location: extractedData.personal_info?.location || 'San Francisco, CA',
-        linkedin: extractedData.personal_info?.linkedin || 'linkedin.com/in/johndoe',
-        portfolio: extractedData.personal_info?.portfolio || 'johndoeportfolio.com',
-        title: extractedData.personal_info?.title || 'Senior Software Engineer'
+        name: extractedData.personal_info?.full_name || '',
+        email: extractedData.personal_info?.email || '',
+        phone: extractedData.personal_info?.phone || '',
+        location: extractedData.personal_info?.location || '',
+        linkedin: extractedData.personal_info?.linkedin || '',
+        portfolio: extractedData.personal_info?.portfolio || '',
+        title: extractedData.personal_info?.title || ''
       },
       
-      summary: extractedData.professional_summary || 'Experienced professional with strong technical skills.',
+      summary: extractedData.professional_summary || '',
       
-      skills: Array.isArray(extractedData.skills) && extractedData.skills.length > 0 
-        ? extractedData.skills 
-        : ['JavaScript', 'React', 'Node.js', 'Python', 'AWS'],
+      skills: Array.isArray(extractedData.skills) ? extractedData.skills : [],
       
-      experiences: (Array.isArray(extractedData.experience) && extractedData.experience.length > 0)
-        ? extractedData.experience.slice(0, 2).map((exp, index) => ({
-            job_title: exp.job_title || `Position ${index + 1}`,
-            company: exp.company || `Company ${index + 1}`,
-            duration: exp.duration || 'Not specified',
-            location: exp.location || 'Not specified',
-            achievements: Array.isArray(exp.achievements) && exp.achievements.length > 0
-              ? exp.achievements
-              : ['Responsibilities and achievements']
-          }))
-        : [{
-            job_title: 'Software Engineer',
-            company: 'Technology Company',
-            duration: '2020 - Present',
-            location: 'San Francisco, CA',
-            achievements: ['Developed web applications', 'Collaborated with cross-functional teams']
-          }],
+      experiences: Array.isArray(extractedData.experience) && extractedData.experience.length > 0 ? 
+        extractedData.experience.map((exp, index) => ({
+          job_title: exp.job_title || '',
+          company: exp.company || '',
+          duration: exp.duration || '',
+          location: exp.location || '',
+          achievements: Array.isArray(exp.achievements) ? exp.achievements : []
+        })) : [],
       
-      education: (Array.isArray(extractedData.education) && extractedData.education.length > 0)
-        ? extractedData.education.slice(0, 2).map(edu => ({
-            degree: edu.degree || 'Degree',
-            institution: edu.institution || 'University',
-            year: edu.year || 'Year',
-            location: edu.location || 'Location'
-          }))
-        : [{
-            degree: 'Bachelor of Science',
-            institution: 'University',
-            year: '2018',
-            location: 'City, State'
-          }],
+      education: Array.isArray(extractedData.education) && extractedData.education.length > 0 ? 
+        extractedData.education.map(edu => ({
+          degree: edu.degree || '',
+          institution: edu.institution || '',
+          year: edu.year || '',
+          location: edu.location || ''
+        })) : [],
       
-      certifications: Array.isArray(extractedData.certifications) && extractedData.certifications.length > 0
-        ? extractedData.certifications
-        : ['Professional Certification'],
-      
-      projects: Array.isArray(extractedData.projects) && extractedData.projects.length > 0
-        ? extractedData.projects
-        : ['Sample Project 1', 'Sample Project 2'],
-      
-      languages: Array.isArray(extractedData.languages) && extractedData.languages.length > 0
-        ? extractedData.languages
-        : ['English', 'Spanish'],
+      certifications: Array.isArray(extractedData.certifications) ? extractedData.certifications : [],
+      projects: Array.isArray(extractedData.projects) ? extractedData.projects : [],
+      languages: Array.isArray(extractedData.languages) ? extractedData.languages : [],
       
       generatedDate: new Date().toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric'
-      }),
-      currentYear: new Date().getFullYear()
+      })
     };
     
-    console.log("✅ Data prepared:");
-    console.log("   Name:", data.personal.name);
-    console.log("   Skills:", data.skills.length, "items");
-    console.log("   Experience:", data.experiences.length, "positions");
+    // Log what was extracted
+    console.log("📊 Parsed CV Data Summary:");
+    console.log("   Name:", data.personal.name || "Not found");
+    console.log("   Email:", data.personal.email || "Not found");
+    console.log("   Skills:", data.skills.length, "skills found");
+    console.log("   Experiences:", data.experiences.length, "experiences found");
+    console.log("   Education:", data.education.length, "education entries found");
     
     return data;
+  }
+
+  /**
+   * Debug function to see XML structure
+   */
+  async debugDOCXStructure(docxBuffer) {
+    const zip = new JSZip();
+    await zip.loadAsync(docxBuffer);
+    
+    const documentXml = await zip.file('word/document.xml').async('text');
+    
+    // Find all w:t tags to see structure
+    const wttags = documentXml.match(/<w:t[^>]*>.*?<\/w:t>/g) || [];
+    
+    console.log("🔍 DOCX Structure Analysis:");
+    console.log("   Total w:t tags:", wttags.length);
+    
+    // Show first few w:t tags
+    wttags.slice(0, 10).forEach((tag, i) => {
+      const text = tag.replace(/<[^>]+>/g, '').trim();
+      if (text) {
+        console.log(`   Tag ${i + 1}: "${text}"`);
+      }
+    });
+    
+    // Look for placeholders
+    const placeholders = ['[NAME]', '[EMAIL]', '[PHONE]', '[SUMMARY]'];
+    placeholders.forEach(placeholder => {
+      if (documentXml.includes(placeholder)) {
+        console.log(`✅ Found ${placeholder} in XML`);
+      }
+    });
+    
+    return {
+      totalTags: wttags.length,
+      sampleTags: wttags.slice(0, 5),
+      hasPlaceholders: placeholders.filter(p => documentXml.includes(p))
+    };
   }
 }
 
