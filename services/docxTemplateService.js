@@ -1,14 +1,14 @@
-// services/docxTemplateService.js - ADVANCED VERSION
 import JSZip from 'jszip';
 
 export class DOCXTemplateService {
   
   constructor() {
     this.placeholderPatterns = {
+      // These regexes now target the clean, normalized text:
       simple: /\[([A-Z_]+)\]/g,
       loop: /\{\{#([a-z_]+)\}\}(.*?)\{\{\/([a-z_]+)\}\}/gs,
       conditional: /\{\{#if ([a-z_]+)\}\}(.*?)\{\{\/if ([a-z_]+)\}\}/gs,
-      inlineFormat: /\{\{([a-z_]+)\|([^}]+)\}\}/g
+      inlineFormat: /\{\{([a-z_]+)\|([^}]+)\}\}/g 
     };
   }
 
@@ -19,7 +19,6 @@ export class DOCXTemplateService {
     try {
       console.log("🔄 Processing DOCX template with advanced features...");
       
-      // Load the DOCX file
       const zip = new JSZip();
       await zip.loadAsync(docxBuffer);
       
@@ -27,12 +26,38 @@ export class DOCXTemplateService {
       const documentXml = await zip.file('word/document.xml').async('text');
       
       console.log("📄 Document XML loaded");
+
+      // --- CRITICAL FIX: Explicitly handle the document body ---
+      // 1. Extract body content and store surrounding XML (header, footers, etc.)
+      const bodyMatch = documentXml.match(/(<w:body>)([\s\S]*)(<\/w:body>)/i);
+      if (!bodyMatch) {
+          throw new Error("Could not find <w:body> tag in DOCX XML.");
+      }
+      
+      const documentHeader = documentXml.substring(0, bodyMatch.index);
+      const bodyStartTag = bodyMatch[1];
+      const bodyContent = bodyMatch[2];
+      const bodyEndTag = bodyMatch[3];
+      const documentFooter = documentXml.substring(bodyMatch.index + bodyMatch[0].length);
+
+
+      // CRITICAL STEP 1: Normalize the XML text to combine fragmented placeholders
+      // We only normalize the body content.
+      const normalizedBody = this.normalizeXmlText(bodyContent);
+      console.log("🛠️ XML normalized for placeholder recognition");
       
       // Process the XML with all features
-      const processedXml = await this.processWithAdvancedFeatures(documentXml, data);
+      const processedBody = this.processWithAdvancedFeatures(normalizedBody, data);
+      
+      // CRITICAL STEP 3: Re-fragment the final text into XML run structure
+      // We pass the full original XML to extract run properties.
+      const finalBodyXml = this.refragmentXmlText(processedBody, documentXml);
+      
+      // --- CRITICAL FIX: Re-assemble the full XML ---
+      const finalXml = documentHeader + bodyStartTag + finalBodyXml + bodyEndTag + documentFooter;
       
       // Update the ZIP with modified document
-      zip.file('word/document.xml', processedXml);
+      zip.file('word/document.xml', finalXml);
       
       // Generate the new DOCX buffer
       const newDocxBuffer = await zip.generateAsync({ 
@@ -48,11 +73,66 @@ export class DOCXTemplateService {
       throw error;
     }
   }
+  
+  /**
+   * Normalize the XML by stripping run and text tags, making the content plain text.
+   * This is necessary for regex matching across fragmented placeholders.
+   */
+  normalizeXmlText(xmlText) {
+    let tempResult = xmlText;
+    
+    // Replace <w:br/> with a temporary newline marker that won't be stripped
+    tempResult = tempResult.replace(/<w:br[^>]*\/>/g, '---W:BR---');
+    
+    // Aggressively strip all <w:r> and <w:t> tags and their properties
+    tempResult = tempResult.replace(/<w:r[^>]*>[\s\S]*?<w:t[^>]*>/g, ''); 
+    tempResult = tempResult.replace(/<\/w:t>[\s\S]*?<\/w:r>/g, ''); 
+    
+    // Restore the newline markers
+    tempResult = tempResult.replace(/---W:BR---/g, '\n');
+    
+    return tempResult;
+  }
+  
+  /**
+   * Re-fragment the final processed text into valid Word XML run structure.
+   */
+  refragmentXmlText(processedText, originalXml) {
+    
+    // Find a unique run property from the original XML to apply to the new content
+    const runPropsMatch = originalXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+    const runProps = runPropsMatch ? runPropsMatch[0] : '';
+    
+    // Split the text based on structural tags
+    const structuralRegex = /(<\/?w:p[^>]*>|<\/?w:tbl[^>]*>|<\/?w:tr[^>]*>|<\/?w:tc[^>]*>)/g; 
+    const parts = processedText.split(structuralRegex).filter(p => p.length > 0);
+    
+    let finalXml = '';
+    
+    for (const part of parts) {
+      if (part.startsWith('<w:')) {
+        // This is a structural XML tag, leave it as is
+        finalXml += part;
+      } else {
+        // This is raw text content. Wrap in <w:p> to ensure display.
+        const trimmedPart = part.trim();
+        if (trimmedPart.length > 0) {
+          const escapedContent = this.escapeXml(trimmedPart);
+          
+          // CRITICAL FIX: Wrap the runs in a paragraph tag <w:p> to ensure Word displays the content.
+          finalXml += `<w:p><w:r>${runProps}<w:t xml:space="preserve">${escapedContent}</w:t></w:r></w:p>`;
+        }
+      }
+    }
+    
+    return finalXml;
+  }
+
 
   /**
    * Process XML with all advanced features
    */
-  async processWithAdvancedFeatures(xmlText, data) {
+  processWithAdvancedFeatures(xmlText, data) {
     let result = xmlText;
     
     // 1. Process loops first (so nested content can be processed)
@@ -70,22 +150,24 @@ export class DOCXTemplateService {
     // 5. Process inline formatting
     result = this.processInlineFormatting(result);
     
-    // 6. Clean up any remaining empty sections
-    result = this.cleanEmptySections(result);
-    
     return result;
   }
 
   /**
    * Process loop syntax: {{#array}}content{{/array}}
+   * FIX: Uses String.prototype.replace with a function for reliable, global, and recursive execution.
    */
   processLoops(xmlText, data) {
-    let result = xmlText;
     const loopRegex = this.placeholderPatterns.loop;
     
-    let match;
-    while ((match = loopRegex.exec(xmlText)) !== null) {
-      const [fullMatch, arrayName, content, closingTag] = match;
+    // Use replace with a function to handle all matches reliably
+    const result = xmlText.replace(loopRegex, (fullMatch, arrayName, content, closingTag) => {
+      
+      // Basic validation
+      if (arrayName !== closingTag) {
+        console.warn(`Loop mismatch: Opened ${arrayName}, closed ${closingTag}. Removing loop.`);
+        return '';
+      }
       
       if (data[arrayName] && Array.isArray(data[arrayName])) {
         let loopContent = '';
@@ -96,9 +178,10 @@ export class DOCXTemplateService {
           // Replace item properties within the loop
           Object.keys(item).forEach(key => {
             const placeholder = `[${key.toUpperCase()}]`;
-            if (item[key]) {
+            if (item[key] !== undefined && item[key] !== null && typeof item[key] !== 'object') {
               const regex = new RegExp(this.escapeRegex(placeholder), 'g');
-              itemContent = itemContent.replace(regex, this.escapeXml(item[key]));
+              // Content is normalized plain text here
+              itemContent = itemContent.replace(regex, item[key]);
             }
           });
           
@@ -107,32 +190,37 @@ export class DOCXTemplateService {
           itemContent = itemContent.replace(/\[IS_FIRST\]/g, index === 0 ? 'true' : '');
           itemContent = itemContent.replace(/\[IS_LAST\]/g, index === data[arrayName].length - 1 ? 'true' : '');
           
+          // CRITICAL: Handle nested loops/conditionals (Recursion)
+          itemContent = this.processLoops(itemContent, item); 
+          itemContent = this.processConditionals(itemContent, item); 
+          
           loopContent += itemContent;
         });
         
-        result = result.replace(fullMatch, loopContent);
+        return loopContent;
       } else {
         // Remove loop if array doesn't exist or is empty
-        result = result.replace(fullMatch, '');
+        return '';
       }
-      
-      // Reset regex lastIndex to avoid infinite loop
-      loopRegex.lastIndex = 0;
-    }
+    });
     
     return result;
   }
 
   /**
    * Process conditional syntax: {{#if condition}}content{{/if condition}}
+   * FIX: Uses String.prototype.replace with a function for reliable, global execution.
    */
   processConditionals(xmlText, data) {
-    let result = xmlText;
     const conditionalRegex = this.placeholderPatterns.conditional;
     
-    let match;
-    while ((match = conditionalRegex.exec(xmlText)) !== null) {
-      const [fullMatch, condition, content, closingTag] = match;
+    const result = xmlText.replace(conditionalRegex, (fullMatch, condition, content, closingTag) => {
+      
+      // Basic validation
+      if (condition !== closingTag) {
+        console.warn(`Conditional mismatch: Opened ${condition}, closed ${closingTag}. Removing conditional.`);
+        return '';
+      }
       
       let shouldShow = false;
       
@@ -147,14 +235,12 @@ export class DOCXTemplateService {
         const field = condition.replace('not_empty_', '');
         shouldShow = data[field] && data[field].toString().trim() !== '';
       } else if (data[condition] !== undefined) {
+        // Check if the property itself is truthy
         shouldShow = !!data[condition];
       }
       
-      result = result.replace(fullMatch, shouldShow ? content : '');
-      
-      // Reset regex lastIndex
-      conditionalRegex.lastIndex = 0;
-    }
+      return shouldShow ? content : '';
+    });
     
     return result;
   }
@@ -172,7 +258,8 @@ export class DOCXTemplateService {
     Object.entries(replacements).forEach(([placeholder, value]) => {
       if (value && value.trim()) {
         const regex = new RegExp(this.escapeRegex(placeholder), 'g');
-        result = result.replace(regex, this.escapeXml(value));
+        // Value is plain text here
+        result = result.replace(regex, value);
       } else {
         // Remove empty placeholders
         const regex = new RegExp(this.escapeRegex(placeholder), 'g');
@@ -321,7 +408,7 @@ export class DOCXTemplateService {
       
       if (yearMatch && yearMatch.length >= 2) {
         const startYear = parseInt(yearMatch[0]);
-        const endYear = yearMatch[1] === 'Present' ? new Date().getFullYear() : parseInt(yearMatch[1]);
+        const endYear = yearMatch[1].toLowerCase() === 'present' ? new Date().getFullYear() : parseInt(yearMatch[1]);
         totalYears += (endYear - startYear);
       } else if (duration.toLowerCase().includes('present')) {
         totalYears += 1; // Assume at least 1 year for current positions
@@ -335,23 +422,21 @@ export class DOCXTemplateService {
    * Process simple placeholders
    */
   processSimplePlaceholders(xmlText, data) {
-    let result = xmlText;
     const simpleRegex = this.placeholderPatterns.simple;
     
     // Build simple replacements
     const simpleReplacements = this.buildSimpleReplacements(data);
     
-    let match;
-    while ((match = simpleRegex.exec(result)) !== null) {
-      const [placeholder, key] = match;
+    const result = xmlText.replace(simpleRegex, (fullMatch, key) => {
       const value = simpleReplacements[key] || '';
       
       if (value && value.trim()) {
-        result = result.replace(placeholder, this.escapeXml(value));
+        // Return the plain text value
+        return value;
       } else {
-        result = result.replace(placeholder, '');
+        return '';
       }
-    }
+    });
     
     return result;
   }
@@ -377,7 +462,7 @@ export class DOCXTemplateService {
     // Skills
     replacements['SKILLS'] = Array.isArray(data.skills) ? data.skills.join(', ') : '';
     
-    // First experience
+    // First experience (used for single-value placeholders like [JOB_TITLE])
     const firstExp = data.experiences?.[0] || {};
     replacements['JOB_TITLE'] = firstExp.job_title || '';
     replacements['COMPANY'] = firstExp.company || '';
@@ -386,7 +471,7 @@ export class DOCXTemplateService {
     replacements['ACHIEVEMENTS'] = Array.isArray(firstExp.achievements) ? 
       firstExp.achievements.map(ach => `• ${ach}`).join('\n') : '';
     
-    // First education
+    // First education (used for single-value placeholders like [DEGREE])
     const firstEdu = data.education?.[0] || {};
     replacements['DEGREE'] = firstEdu.degree || '';
     replacements['INSTITUTION'] = firstEdu.institution || '';
@@ -412,34 +497,12 @@ export class DOCXTemplateService {
     let result = xmlText;
     const formatRegex = this.placeholderPatterns.inlineFormat;
     
-    let match;
-    while ((match = formatRegex.exec(result)) !== null) {
-      const [fullMatch, field, format] = match;
-      
-      // This would be replaced with actual data in a second pass
-      // For now, we just remove the formatting syntax
-      result = result.replace(fullMatch, `[${field.toUpperCase()}]`);
-      
-      // Reset regex lastIndex
-      formatRegex.lastIndex = 0;
-    }
+    const resultReplace = result.replace(formatRegex, (fullMatch, field, format) => {
+      // For now, we remove the formatting syntax and leave the placeholder
+      return `[${field.toUpperCase()}]`;
+    });
     
-    return result;
-  }
-
-  /**
-   * Clean empty sections
-   */
-  cleanEmptySections(xmlText) {
-    let result = xmlText;
-    
-    // Remove empty paragraph tags
-    result = result.replace(/<w:p[^>]*>\s*<w:r[^>]*>\s*<w:t[^>]*>\s*<\/w:t>\s*<\/w:r>\s*<\/w:p>/g, '');
-    
-    // Remove multiple consecutive empty lines
-    result = result.replace(/(<w:p[^>]*>\s*<\/w:p>\s*){2,}/g, '<w:p></w:p>');
-    
-    return result;
+    return resultReplace;
   }
 
   /**
@@ -547,17 +610,23 @@ export class DOCXTemplateService {
   }
 
   /**
-   * Escape XML special characters
+   * Escape XML special characters and handle line breaks for DOCX
    */
   escapeXml(text) {
     if (!text) return '';
-    return text
+    
+    // Replace standard XML special characters
+    let escaped = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;')
-      .replace(/\n/g, '</w:t><w:br/><w:t>'); // Handle line breaks
+      .replace(/'/g, '&apos;');
+      
+    // Handle line breaks by inserting <w:br/> inside <w:t> tags
+    escaped = escaped.replace(/\n/g, '</w:t><w:br/><w:t xml:space="preserve">'); 
+    
+    return escaped;
   }
 }
 

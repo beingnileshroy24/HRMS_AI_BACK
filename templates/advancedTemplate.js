@@ -43,7 +43,7 @@ export const getAdvancedTemplateHTML = () => {
     {{/experiences}}
     
     <!-- Or use the compact version -->
-    <h3>All Experiences</h3>
+    <h3>All Experiences (Compact)</h3>
     [ALL_EXPERIENCES]
     {{/if has_experiences}}
     
@@ -59,6 +59,7 @@ export const getAdvancedTemplateHTML = () => {
     
     {{#if has_projects}}
     <h2>Projects</h2>
+    <!-- This loop should now render all projects -->
     {{#projects}}
     <p><strong>Project [INDEX]:</strong> [PROJECT]</p>
     {{/projects}}

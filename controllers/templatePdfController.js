@@ -150,17 +150,20 @@ Education:
 Generated: [DATE]
 `;
     
-    // Process the template
+    // Create test docx XML structure (mimicking what would be read from DOCX)
     const zip = new JSZip();
-    const xmlContent = `<w:document>${testTemplate}</w:document>`;
+    const xmlContent = `<w:document><w:body><w:p>${testTemplate}</w:p></w:body></w:document>`;
     zip.file('word/document.xml', xmlContent);
     
+    // Process the template
+    // NOTE: This test uses a simplified XML structure, so the fix in docxTemplateService 
+    // for XML fragmentation is essential for real DOCX files.
     const processed = await docxTemplateService.processWithAdvancedFeatures(
       xmlContent,
       sampleData
     );
     
-    // Extract result
+    // Extract result (remove any remaining structural tags for testing output)
     const result = processed.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
     
     return res.json({
