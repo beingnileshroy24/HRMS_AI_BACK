@@ -177,11 +177,20 @@ export class DOCXTemplateService {
           
           // Replace item properties within the loop
           Object.keys(item).forEach(key => {
+            // Check if the key value is a complex object (like achievements array)
+            const itemValue = item[key];
             const placeholder = `[${key.toUpperCase()}]`;
-            if (item[key] !== undefined && item[key] !== null && typeof item[key] !== 'object') {
-              const regex = new RegExp(this.escapeRegex(placeholder), 'g');
-              // Content is normalized plain text here
-              itemContent = itemContent.replace(regex, item[key]);
+            
+            if (itemValue !== undefined && itemValue !== null) {
+              
+              if (typeof itemValue !== 'object' || Array.isArray(itemValue)) {
+                // Handle simple values or arrays (which are handled by nested loops)
+                const finalValue = Array.isArray(itemValue) ? '' : String(itemValue);
+                const regex = new RegExp(this.escapeRegex(placeholder), 'g');
+                // Content is normalized plain text here
+                itemContent = itemContent.replace(regex, finalValue);
+              }
+              // NOTE: Objects (like nested projects) are currently left as empty string if not explicitly handled
             }
           });
           
@@ -191,8 +200,7 @@ export class DOCXTemplateService {
           itemContent = itemContent.replace(/\[IS_LAST\]/g, index === data[arrayName].length - 1 ? 'true' : '');
           
           // CRITICAL: Handle nested loops/conditionals (Recursion)
-          itemContent = this.processLoops(itemContent, item); 
-          itemContent = this.processConditionals(itemContent, item); 
+          itemContent = this.processWithAdvancedFeatures(itemContent, item); 
           
           loopContent += itemContent;
         });
@@ -548,6 +556,7 @@ export class DOCXTemplateService {
       }),
       
       // Boolean flags for conditionals
+      has_summary: extractedData.professional_summary && extractedData.professional_summary.trim() !== '', // NEW FLAG
       has_experiences: Array.isArray(extractedData.experience) && extractedData.experience.length > 0,
       has_education: Array.isArray(extractedData.education) && extractedData.education.length > 0,
       has_skills: Array.isArray(extractedData.skills) && extractedData.skills.length > 0,
@@ -575,7 +584,8 @@ export class DOCXTemplateService {
       company: exp.company || '',
       duration: exp.duration || '',
       location: exp.location || '',
-      achievements: Array.isArray(exp.achievements) ? exp.achievements : [],
+      // Ensure achievements is an array of strings, even if single string is returned
+      achievements: Array.isArray(exp.achievements) ? exp.achievements : (exp.achievements ? [exp.achievements] : []),
       description: exp.description || '',
       index: index + 1,
       is_first: index === 0,
@@ -624,6 +634,7 @@ export class DOCXTemplateService {
       .replace(/'/g, '&apos;');
       
     // Handle line breaks by inserting <w:br/> inside <w:t> tags
+    // Word handles <w:br/> much better than just a \n.
     escaped = escaped.replace(/\n/g, '</w:t><w:br/><w:t xml:space="preserve">'); 
     
     return escaped;

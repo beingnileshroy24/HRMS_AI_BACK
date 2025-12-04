@@ -2,7 +2,7 @@
 import { geminiVisionParser } from '../utils/geminiVisionParser.js';
 import { docxTemplateService } from '../services/docxTemplateService.js';
 import { getSampleTemplateHTML } from '../templates/sampleTemplate.js';
-import { getAdvancedTemplateHTML, getTemplateExamples } from '../templates/advancedTemplate.js';
+import { getAdvancedTemplateHTML, getTemplateExamples, getDebugTemplateHTML } from '../templates/advancedTemplate.js';
 import fs from 'fs';
 import JSZip from 'jszip';
 
@@ -20,6 +20,23 @@ export const getAdvancedTemplate = async (req, res) => {
     return res.status(500).json({ error: error.message });
   }
 };
+
+// NEW ENDPOINT: Download the debug template
+export const getDebugTemplate = async (req, res) => {
+  try {
+    const template = getDebugTemplateHTML();
+    
+    res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Content-Disposition', 'attachment; filename="Debug_CV_Data_Structure_Template.html"');
+    
+    return res.send(template);
+    
+  } catch (error) {
+    console.error("❌ Debug template error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 
 export const getTemplateDocumentation = async (req, res) => {
   try {
@@ -53,6 +70,7 @@ export const getTemplateDocumentation = async (req, res) => {
           available_conditions: [
             'has_experiences', 'has_education', 'has_skills',
             'has_certifications', 'has_projects', 'has_languages',
+            'has_summary', // Added
             'not_empty_[field]'
           ]
         },
@@ -110,6 +128,7 @@ export const testAdvancedTemplate = async (req, res) => {
       has_experiences: true,
       has_education: true,
       has_skills: true,
+      has_summary: true, // Added for completeness
       generatedDate: "December 3, 2025"
     };
     
@@ -152,7 +171,7 @@ Generated: [DATE]
     
     // Create test docx XML structure (mimicking what would be read from DOCX)
     const zip = new JSZip();
-    const xmlContent = `<w:document><w:body><w:p>${testTemplate}</w:p></w:body></w:document>`;
+    const xmlContent = `<w:document><w:body><w:p><w:r><w:t>${testTemplate}</w:t></w:r></w:p></w:body></w:document>`;
     zip.file('word/document.xml', xmlContent);
     
     // Process the template
@@ -406,6 +425,8 @@ export const testDOCXEndpoint = async (req, res) => {
         generateSimpleDOCX: "POST /api/cv/generate-docx (CV only, uses default template)",
         generateFromData: "POST /api/cv/generate-docx-from-data (extracted data only)",
         sampleTemplate: "GET /api/cv/template/sample",
+        advancedTemplate: "GET /api/cv/template/advanced",
+        debugTemplate: "GET /api/cv/template/debug",
         uploadTemplate: "POST /api/cv/upload-template",
         test: "GET /api/cv/test-docx"
       },
@@ -665,7 +686,12 @@ async function createSimpleDOCX(data) {
   ${data.projects && data.projects.length > 0 ? `
   <div class="section">
     <h2>PROJECTS</h2>
-    <p>${data.projects.join(', ')}</p>
+    ${data.projects.map((proj, index) => `
+      <div style="margin-bottom: 6pt;">
+        <div style="font-weight: bold;">Project ${index + 1}</div>
+        <p>${proj}</p>
+      </div>
+    `).join('')}
   </div>` : ''}
   
   <div style="margin-top: 24pt; padding-top: 6pt; border-top: 0.5pt solid #cccccc; color: #999999; font-size: 9pt;">

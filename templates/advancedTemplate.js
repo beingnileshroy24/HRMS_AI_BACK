@@ -76,6 +76,102 @@ export const getAdvancedTemplateHTML = () => {
 </html>`;
 };
 
+// New function to display the full, structured JSON data mapped by the service
+export const getDebugTemplateHTML = () => {
+  return `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Extracted Data CV Template</title>
+</head>
+<body>
+    <h1>Extracted JSON Data Structure</h1>
+    <p>This template shows the exact data structure mapped by the system for templating.</p>
+
+    <!-- 1. personal_info (mapped to 'personal') -->
+    <h2>1. Personal Information (personal)</h2>
+    <ul>
+        <li><strong>Name:</strong> [NAME]</li>
+        <li><strong>Title:</strong> [TITLE]</li>
+        <li><strong>Email:</strong> [EMAIL]</li>
+        <li><strong>Phone:</strong> [PHONE]</li>
+        <li><strong>Location:</strong> [LOCATION]</li>
+        <li><strong>LinkedIn:</strong> [LINKEDIN]</li>
+        <li><strong>Portfolio:</strong> [PORTFOLIO]</li>
+    </ul>
+
+    <!-- 2. professional_summary (mapped to 'summary') -->
+    {{#if has_summary}}
+    <h2>2. Professional Summary (summary)</h2>
+    <p>[SUMMARY]</p>
+    {{/if has_summary}}
+
+    <!-- 3. skills -->
+    {{#if has_skills}}
+    <h2>3. Skills (skills)</h2>
+    <p><strong>Skills List:</strong> [SKILLS]</p>
+    
+    <h3>3.1. Categorized Skills ([SKILLS_BY_CATEGORY])</h3>
+    <!-- Note: We use <pre> tags here to preserve the multi-line formatting of this advanced placeholder -->
+    <pre>[SKILLS_BY_CATEGORY]</pre>
+    {{/if has_skills}}
+
+    <!-- 4. experience (mapped to 'experiences') -->
+    {{#if has_experiences}}
+    <h2>4. Work Experience (experiences)</h2>
+    <p>Summary: [EXPERIENCE_SUMMARY]</p>
+    
+    {{#experiences}}
+    <hr>
+    <h3>Job [INDEX]: [JOB_TITLE] at [COMPANY]</h3>
+    <p>Duration: [DURATION] | Location: [JOB_LOCATION]</p>
+    
+    <!-- Nested Loop: achievements -->
+    {{#achievements}}
+    <ul>
+        <li>• [ACHIEVEMENT]</li>
+    </ul>
+    {{/achievements}}
+    {{/experiences}}
+    {{/if has_experiences}}
+
+    <!-- 5. education -->
+    {{#if has_education}}
+    <h2>5. Education (education)</h2>
+    {{#education}}
+    <hr>
+    <h3>Education [INDEX]: [DEGREE]</h3>
+    <p>Institution: [INSTITUTION] | Year: [YEAR] | Location: [EDUCATION_LOCATION]</p>
+    {{/education}}
+    {{/if has_education}}
+    
+    <!-- 6. certifications -->
+    {{#if has_certifications}}
+    <h2>6. Certifications (certifications)</h2>
+    <p>[CERTIFICATIONS]</p>
+    {{/if has_certifications}}
+    
+    <!-- 7. projects -->
+    {{#if has_projects}}
+    <h2>7. Projects (projects)</h2>
+    {{#projects}}
+    <hr>
+    <p><strong>Project [INDEX]:</strong> [PROJECT]</p>
+    {{/projects}}
+    {{/if has_projects}}
+    
+    <!-- 8. languages -->
+    {{#if has_languages}}
+    <h2>8. Languages (languages)</h2>
+    <p>[LANGUAGES]</p>
+    {{/if has_languages}}
+
+    <hr>
+    <p><em>Generated: [DATE]</em></p>
+</body>
+</html>`;
+};
+
 export const getTemplateExamples = () => {
   return {
     simple: `
