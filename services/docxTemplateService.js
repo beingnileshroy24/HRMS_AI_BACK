@@ -670,7 +670,7 @@ buildSimpleReplacements(data) {
   
   // Other fields
   replacements['CERTIFICATIONS'] = Array.isArray(data.certifications) ? 
-    data.certifications.join(', ') : '';
+    data.certifications.join('\n\n') : '';
   replacements['LANGUAGES'] = Array.isArray(data.languages) ? 
     data.languages.join(', ') : '';
   replacements['PROJECTS'] = Array.isArray(data.projects) ? 

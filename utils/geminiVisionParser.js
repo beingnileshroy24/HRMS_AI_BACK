@@ -258,25 +258,7 @@ Format the output as valid JSON only.
 }
 
 // ✅ ADD THIS METHOD FOR DEFAULT STRUCTURE
-getDefaultStructure() {
-  return {
-    personal_info: {
-      full_name: "Professional Candidate",
-      email: "",
-      phone: "",
-      location: "",
-      linkedin: "",
-      portfolio: ""
-    },
-    professional_summary: "Experienced professional with strong skills and proven track record.",
-    skills: [],
-    experience: [],
-    education: [],
-    certifications: [],
-    projects: [],
-    languages: []
-  };
-}
+
 
   validateVisionData(data) {
   // Ensure all required fields exist with proper fallbacks
@@ -290,7 +272,7 @@ getDefaultStructure() {
       portfolio: this.safeString(data.personal_info?.portfolio) || "",
     },
     professional_summary: this.safeString(data.professional_summary) || 
-      "Experienced professional with strong skills and proven track record.",
+      "",
     skills: this.normalizeArray(data.skills),
     experience: this.normalizeExperience(data.experience),
     education: this.normalizeEducation(data.education),
