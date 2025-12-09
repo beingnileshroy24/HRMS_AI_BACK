@@ -5,6 +5,193 @@ import { getSampleTemplateHTML } from '../templates/sampleTemplate.js';
 import { getAdvancedTemplateHTML, getTemplateExamples, getDebugTemplateHTML } from '../templates/advancedTemplate.js';
 import fs from 'fs';
 import JSZip from 'jszip';
+import axios from 'axios';
+import path from 'path'; // Add this line
+import os from 'os';
+
+// Extract data from CV URL
+export const extractDataFromCVUrl = async (req, res) => {
+  try {
+    const { cv_url } = req.body;
+    if (!cv_url) return res.status(400).json({ error: "CV URL is required" });
+    
+    console.log(`🔗 Processing CV from URL: ${cv_url}`);
+    const downloadedFile = await downloadFileFromUrl(cv_url);
+    
+    const tempDir = os.tmpdir();
+    const tempFilePath = path.join(tempDir, `cv_${Date.now()}_${downloadedFile.originalname}`);
+    fs.writeFileSync(tempFilePath, downloadedFile.buffer);
+    
+    const fileObject = {
+      path: tempFilePath,
+      originalname: downloadedFile.originalname,
+      mimetype: downloadedFile.contentType,
+      size: downloadedFile.size
+    };
+    
+    let extractedData;
+    try {
+      extractedData = await extractCVDataFromFile(fileObject, tempFilePath);
+      console.log("✅ CV data extracted successfully from URL");
+    } catch (error) {
+      console.error("❌ CV extraction failed, using sample data:", error.message);
+      extractedData = getSampleCVData();
+    }
+    
+    if (fs.existsSync(tempFilePath)) fs.unlinkSync(tempFilePath);
+    
+    return res.json({
+      success: true,
+      extracted_data: extractedData,
+      source: cv_url,
+      file_info: {
+        name: downloadedFile.originalname,
+        size: downloadedFile.size,
+        type: downloadedFile.contentType
+      }
+    });
+  } catch (error) {
+    console.error("❌ URL extraction error:", error);
+    return res.status(500).json({ error: error.message || "Failed to process CV from URL" });
+  }
+};
+
+// Generate DOCX from CV URL
+// In templatePdfController.js, update the generateDOCXFromCVUrl function:
+
+export const generateDOCXFromCVUrl = async (req, res) => {
+  let cvTempPath = null;
+  let templateFilePath = null;
+  let templateFile = null;
+
+  try {
+    console.log("🔗 Processing DOCX generation from CV URL");
+    console.log("📤 Request method:", req.method);
+    console.log("📤 Request headers:", req.headers['content-type']);
+    console.log("📤 Has files:", !!req.files);
+    console.log("📤 Has body:", !!req.body);
+    
+    // Handle both JSON body (for URL only) and form-data (for URL + template)
+    let cvUrl;
+    
+    if (req.body && req.body.cv_url) {
+      cvUrl = req.body.cv_url;
+      console.log("📝 CV URL from body:", cvUrl);
+    } else if (req.body && req.body.cv_url === '') {
+      // Try to parse form-data differently
+      cvUrl = req.body.cv_url || '';
+    }
+    
+    if (!cvUrl) {
+      return res.status(400).json({ 
+        error: "CV URL is required. Send as JSON with cv_url field or form-data with cv_url field and optional template file." 
+      });
+    }
+    
+    // 1. Download CV from URL
+    console.log(`📥 Downloading CV from: ${cvUrl}`);
+    const cvDownloadedFile = await downloadFileFromUrl(cvUrl);
+    
+    // Save to temp file
+    const tempDir = os.tmpdir();
+    cvTempPath = path.join(tempDir, `cv_${Date.now()}_${cvDownloadedFile.originalname}`);
+    fs.writeFileSync(cvTempPath, cvDownloadedFile.buffer);
+    
+    console.log(`✅ CV downloaded: ${cvDownloadedFile.originalname} (${cvDownloadedFile.size} bytes)`);
+    
+    // Create file object for processing
+    const cvFileObject = {
+      path: cvTempPath,
+      originalname: cvDownloadedFile.originalname,
+      mimetype: cvDownloadedFile.contentType,
+      size: cvDownloadedFile.size
+    };
+    
+    // 2. Extract data from CV
+    let extractedData;
+    try {
+      extractedData = await extractCVDataFromFile(cvFileObject, cvTempPath);
+      console.log("✅ CV data extracted successfully");
+    } catch (error) {
+      console.error("❌ CV extraction failed, using sample data:", error.message);
+      extractedData = getSampleCVData();
+    }
+    
+    // 3. Prepare template data
+    const templateData = docxTemplateService.prepareTemplateData(extractedData);
+    console.log("📊 Template data prepared");
+    
+    // 4. Handle template (optional) - FIXED: Check req.file as well as req.files
+    let docxBuffer;
+    
+    // Check for template in different possible locations
+    if (req.file) {
+      // Template uploaded as single file
+      templateFile = req.file;
+      console.log("📝 Template from req.file:", templateFile.originalname);
+    } else if (req.files && req.files['template'] && req.files['template'][0]) {
+      // Template uploaded as part of files array
+      templateFile = req.files['template'][0];
+      console.log("📝 Template from req.files['template']:", templateFile.originalname);
+    }
+    
+    if (templateFile) {
+      templateFilePath = templateFile.path;
+      const fileExt = templateFile.originalname.split('.').pop().toLowerCase();
+      
+      if (fileExt === 'docx' || fileExt === 'doc') {
+        console.log(`📝 Using uploaded ${fileExt.toUpperCase()} template: ${templateFile.originalname}`);
+        
+        const templateBuffer = fs.readFileSync(templateFilePath);
+        
+        try {
+          docxBuffer = await docxTemplateService.processDOCXTemplate(
+            templateBuffer, 
+            templateData
+          );
+          console.log("✅ Custom template processed successfully");
+        } catch (templateError) {
+          console.error("❌ Custom template processing failed:", templateError.message);
+          
+          // Fallback to simple DOCX
+          console.log("📝 Falling back to simple DOCX...");
+          docxBuffer = await createSimpleDOCX(templateData);
+        }
+      } else {
+        throw new Error('Only DOCX/DOC templates are supported for upload. Please convert your template to DOCX format.');
+      }
+    } else {
+      console.log("📝 No template uploaded, creating simple DOCX (default template)");
+      // Create a simple DOCX with the data
+      docxBuffer = await createSimpleDOCX(templateData);
+    }
+    
+    // 5. Clean up files
+    cleanupFiles(cvTempPath, templateFilePath);
+    
+    console.log("✅ DOCX generated successfully");
+    
+    // 6. Send DOCX
+    const fileName = generateFileName(extractedData, 'docx');
+    console.log("📁 Generated filename:", fileName);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', docxBuffer.length);
+    
+    return res.send(docxBuffer);
+    
+  } catch (error) {
+    // Clean up on error
+    cleanupFiles(cvTempPath, templateFilePath);
+    
+    console.error("❌ URL DOCX generation error:", error);
+    
+    return res.status(500).json({ 
+      error: error.message || "Failed to generate DOCX from URL"
+    });
+  }
+};
 
 export const getAdvancedTemplate = async (req, res) => {
   try {
@@ -517,20 +704,74 @@ export const debugDOCXTemplate = async (req, res) => {
 
 // ============ HELPER FUNCTIONS ============
 
+const downloadFileFromUrl = async (url) => {
+  try {
+    console.log(`📥 Downloading file from URL: ${url}`);
+    
+    const response = await axios({
+      method: 'GET',
+      url: url,
+      responseType: 'arraybuffer',
+      maxContentLength: 20 * 1024 * 1024,
+      timeout: 30000,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    
+    // Extract filename from URL
+    let filename = 'downloaded_file';
+    try {
+      const urlObj = new URL(url);
+      const pathname = urlObj.pathname;
+      const parts = pathname.split('/');
+      const lastPart = parts[parts.length - 1];
+      if (lastPart && lastPart.includes('.')) {
+        filename = lastPart.split('?')[0];
+      }
+    } catch (e) {
+      console.warn('Could not parse URL for filename:', e.message);
+    }
+    
+    return {
+      buffer: Buffer.from(response.data),
+      contentType: response.headers['content-type'] || '',
+      originalname: filename,
+      size: response.data.length
+    };
+  } catch (error) {
+    console.error('❌ URL download error:', error.message);
+    throw new Error(`Failed to download file from URL: ${error.message}`);
+  }
+};
+
+const extractTextFromDOCX = async (docxBuffer) => {
+  try {
+    console.log("📝 Extracting text from DOCX file...");
+    const result = await mammoth.extractRawText({ buffer: docxBuffer });
+    let text = result.value.replace(/\r\n/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+    console.log(`✅ DOCX text extracted: ${text.length} characters`);
+    return text;
+  } catch (error) {
+    console.error("❌ DOCX text extraction failed:", error);
+    throw new Error(`Failed to extract text from DOCX: ${error.message}`);
+  }
+};
+
 const extractCVDataFromFile = async (cvFile, cvFilePath) => {
   try {
     const cvBuffer = fs.readFileSync(cvFilePath);
+    const fileType = cvFile.mimetype || path.extname(cvFile.originalname).toLowerCase();
 
-    if (cvFile.mimetype.includes("pdf")) {
+    if (cvFile.mimetype.includes("pdf") || fileType.endsWith('.pdf')) {
       console.log("🔄 Parsing PDF with Gemini...");
       return await geminiVisionParser.parsePDFWithVision(cvBuffer, cvFile.originalname);
-    } else if (cvFile.mimetype.includes("image")) {
+    } else if (cvFile.mimetype.includes("image") || 
+               ['.jpg', '.jpeg', '.png'].some(ext => fileType.endsWith(ext))) {
       console.log("🔄 Parsing image with Gemini...");
-      return await geminiVisionParser.parseImageWithVision(
-        cvBuffer, 
-        cvFile.mimetype, 
-        cvFile.originalname
-      );
+      return await geminiVisionParser.parseImageWithVision(cvBuffer, cvFile.mimetype, cvFile.originalname);
+    } else if (cvFile.mimetype.includes("word") || fileType.endsWith('.docx') || fileType.endsWith('.doc')) {
+      console.log("🔄 Parsing DOCX with Gemini...");
+      const text = await extractTextFromDOCX(cvBuffer);
+      return await geminiVisionParser.parseCVTextWithGemini(text);
     } else {
       console.log("🔄 Parsing text with Gemini...");
       const text = fs.readFileSync(cvFilePath, 'utf8');

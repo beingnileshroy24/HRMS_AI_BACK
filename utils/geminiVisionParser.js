@@ -11,7 +11,7 @@ export class GeminiVisionCVParser {
   /**
    * Helper to get the model instance, ensuring the API key is read at runtime.
    */
-  getModel(modelName = "gemini-2.5-pro") {
+  getModel(modelName = "gemini-2.5-flash") {
     const apiKey = process.env.GEMINI_API_KEY
 
     if (!apiKey) {
@@ -38,7 +38,7 @@ export class GeminiVisionCVParser {
       console.log("🔄 Parsing PDF with Gemini Vision...");
 
       // Get model lazily
-      const model = this.getModel("gemini-2.5-pro");
+      const model = this.getModel("gemini-2.5-flash");
 
       // Convert PDF buffer to base64
       const base64PDF = pdfBuffer.toString("base64");
@@ -151,7 +151,7 @@ Important: Only extract information that is actually visible in the document. Be
       console.log("🔄 Parsing image with Gemini Vision...");
 
       // Get model lazily
-      const model = this.getModel("gemini-2.5-pro");
+      const model = this.getModel("gemini-2.5-flash");
 
       const base64Image = imageBuffer.toString("base64");
 
@@ -369,7 +369,7 @@ normalizeEducation(education) {
     console.log("🔄 Parsing CV text with Gemini...");
     
     // Get model lazily
-    const model = this.getModel("gemini-2.5-pro"); // Use stable version
+    const model = this.getModel("gemini-2.5-flash"); // Use stable version
 
     const prompt = `
 You are an expert CV/resume parser. Extract all information from this CV text and return as structured JSON.
@@ -435,7 +435,7 @@ CRITICAL RULES:
 
   // Helper for generating formatted CV text (referenced in controller)
   async generateFormattedCV(extractedData) {
-    const model = this.getModel("gemini-2.5-pro");
+    const model = this.getModel("gemini-2.5-flash");
     const prompt = `
      Based on this data: ${JSON.stringify(extractedData)}
      Write a professional CV content in Markdown format.
@@ -452,7 +452,7 @@ CRITICAL RULES:
   async evaluateCV(extractedData) {
     try {
       console.log('📊 Evaluating CV Quality...');
-      const model = this.getModel("gemini-2.5-pro");
+      const model = this.getModel("gemini-2.5-flash");
 
       const prompt = `
 You are an expert ATS (Applicant Tracking System) and Senior HR Recruiter. 
