@@ -860,6 +860,36 @@ async function createSimpleDOCX(data) {
     li {
       margin-bottom: 3pt;
     }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 6pt;
+    }
+    th {
+      background-color: #f2f2f2;
+      text-align: left;
+      padding: 8pt;
+      border: 1pt solid #dddddd;
+      font-weight: bold;
+      color: #2c5282;
+    }
+    td {
+      padding: 8pt;
+      border: 1pt solid #dddddd;
+      vertical-align: top;
+    }
+    .job-title {
+      font-weight: bold;
+      color: #333333;
+    }
+    .company-info {
+      color: #666666;
+      font-size: 10pt;
+    }
+    .achievement-list {
+      margin: 0;
+      padding-left: 12pt;
+    }
   </style>
 </head>
 <body>
@@ -888,17 +918,36 @@ async function createSimpleDOCX(data) {
   ${data.experiences && data.experiences.length > 0 ? `
   <div class="section">
     <h2>WORK EXPERIENCE</h2>
-    ${data.experiences.map(exp => `
-      <div style="margin-bottom: 12pt;">
-        <div style="font-weight: bold;">${exp.job_title}</div>
-        <div style="color: #666666;">${exp.company} | ${exp.duration} | ${exp.location}</div>
-        ${exp.achievements && exp.achievements.length > 0 ? `
-          <ul style="margin-top: 6pt;">
-            ${exp.achievements.map(ach => `<li>${ach}</li>`).join('')}
-          </ul>
-        ` : ''}
-      </div>
-    `).join('')}
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 20%;">Period</th>
+          <th style="width: 30%;">Position & Company</th>
+          <th style="width: 50%;">Key Achievements & Responsibilities</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.experiences.map(exp => `
+          <tr>
+            <td>
+              <div>${exp.duration}</div>
+              <div class="company-info">${exp.location || ''}</div>
+            </td>
+            <td>
+              <div class="job-title">${exp.job_title}</div>
+              <div class="company-info">${exp.company}</div>
+            </td>
+            <td>
+              ${exp.achievements && exp.achievements.length > 0 ? `
+                <ul class="achievement-list">
+                  ${exp.achievements.map(ach => `<li>${ach}</li>`).join('')}
+                </ul>
+              ` : '<div style="color: #999999; font-style: italic;">No achievements listed</div>'}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   </div>` : ''}
   
   ${data.education && data.education.length > 0 ? `
