@@ -14,7 +14,7 @@ import os from 'os';
 /**
  * Mask contact details in extracted data
  */
-const applyContactDetailsMasking = (extractedData) => {
+const applyContactDetailsMasking = (extractedData, extractedLinks = []) => {
   console.log("🎭 Applying contact details masking...");
   
   if (!extractedData) return extractedData;
@@ -25,7 +25,7 @@ const applyContactDetailsMasking = (extractedData) => {
   if (maskedData.personal_info) {
     console.log("   Masking personal information...");
     
-    // Email - mask with ***
+    // Email masking
     if (maskedData.personal_info.email) {
       const email = maskedData.personal_info.email;
       const [localPart, domain] = email.split('@');
@@ -36,7 +36,7 @@ const applyContactDetailsMasking = (extractedData) => {
       console.log(`     Email: ${email} → ${maskedData.personal_info.email}`);
     }
     
-    // Phone - mask digits
+    // Phone masking
     if (maskedData.personal_info.phone) {
       const phone = maskedData.personal_info.phone;
       const digits = phone.replace(/\D/g, '');
@@ -49,32 +49,8 @@ const applyContactDetailsMasking = (extractedData) => {
       console.log(`     Phone: ${phone} → ${maskedData.personal_info.phone}`);
     }
     
-    // LinkedIn - remove
-    if (maskedData.personal_info.linkedin) {
-      console.log(`     LinkedIn: ${maskedData.personal_info.linkedin} → REMOVED`);
-      delete maskedData.personal_info.linkedin;
-    }
-    
-    // Portfolio/GitHub - remove
-    if (maskedData.personal_info.portfolio) {
-      console.log(`     Portfolio: ${maskedData.personal_info.portfolio} → REMOVED`);
-      delete maskedData.personal_info.portfolio;
-    }
-    
-    // GitHub - remove if exists
-    if (maskedData.personal_info.github) {
-      console.log(`     GitHub: ${maskedData.personal_info.github} → REMOVED`);
-      delete maskedData.personal_info.github;
-    }
-    
-    // Address - remove
-    if (maskedData.personal_info.address) {
-      console.log(`     Address: ${maskedData.personal_info.address} → REMOVED`);
-      delete maskedData.personal_info.address;
-    }
-    
-    // Other social links
-    ['twitter', 'facebook', 'instagram', 'website'].forEach(social => {
+    // Remove links that might be in personal_info
+    ['linkedin', 'portfolio', 'github', 'website', 'twitter', 'facebook', 'instagram'].forEach(social => {
       if (maskedData.personal_info[social]) {
         console.log(`     ${social}: ${maskedData.personal_info[social]} → REMOVED`);
         delete maskedData.personal_info[social];
@@ -82,13 +58,12 @@ const applyContactDetailsMasking = (extractedData) => {
     });
   }
   
-  // Also check for contact info in other sections
-  if (maskedData.contact_info) {
-    console.log("   Masking additional contact information...");
-    Object.keys(maskedData.contact_info).forEach(key => {
-      console.log(`     ${key}: ${maskedData.contact_info[key]} → REMOVED`);
+  // Also process any extracted links from the document
+  if (extractedLinks.length > 0) {
+    console.log("   Processing extracted document links for masking...");
+    extractedLinks.forEach(link => {
+      console.log(`     ${link.type}: ${link.url} → REMOVED`);
     });
-    delete maskedData.contact_info;
   }
   
   console.log("✅ Contact details masked successfully");
@@ -986,15 +961,47 @@ const downloadFileFromUrl = async (url) => {
 
 const extractTextFromDOCX = async (docxBuffer) => {
   try {
-    console.log("📝 Extracting text from DOCX file...");
+    console.log("📝 Converting DOCX to HTML for better parsing...");
     const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer: docxBuffer });
-    let text = result.value.replace(/\r\n/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
-    console.log(`✅ DOCX text extracted: ${text.length} characters`);
-    return text;
+    
+    // Convert to HTML to preserve links and structure
+    const result = await mammoth.convertToHtml({ buffer: docxBuffer });
+    
+    // Get HTML content
+    const htmlContent = result.value;
+    
+    // Extract plain text from HTML for Gemini (keeping links in HTML format)
+    const plainText = htmlContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    
+    console.log(`✅ DOCX converted to HTML: ${htmlContent.length} chars, Plain text: ${plainText.length} chars`);
+    
+    // Return both HTML and plain text
+    return {
+      html: htmlContent,
+      text: plainText,
+      hasLinks: htmlContent.includes('<a href='),
+      messages: result.messages // Any conversion warnings/messages
+    };
   } catch (error) {
-    console.error("❌ DOCX text extraction failed:", error);
-    throw new Error(`Failed to extract text from DOCX: ${error.message}`);
+    console.error("❌ DOCX to HTML conversion failed:", error);
+    
+    // Fallback to raw text extraction
+    try {
+      const mammoth = await import('mammoth');
+      const result = await mammoth.extractRawText({ buffer: docxBuffer });
+      let text = result.value.replace(/\r\n/g, '\n').replace(/\n\s*\n\s*\n/g, '\n\n').trim();
+      console.log(`⚠️ Fallback to raw text extraction: ${text.length} chars`);
+      
+      return {
+        html: `<p>${text.replace(/\n/g, '</p><p>')}</p>`,
+        text: text,
+        hasLinks: false,
+        messages: result.messages
+      };
+    } catch (fallbackError) {
+      console.error("❌ Fallback extraction also failed:", fallbackError);
+      throw new Error(`Failed to extract content from DOCX: ${error.message}`);
+    }
   }
 };
 
@@ -1003,6 +1010,8 @@ const extractCVDataFromFile = async (cvFile, cvFilePath) => {
     const cvBuffer = fs.readFileSync(cvFilePath);
     const fileType = cvFile.mimetype || path.extname(cvFile.originalname).toLowerCase();
 
+    console.log(`📄 Processing file type: ${fileType}, MIME: ${cvFile.mimetype}`);
+    
     if (cvFile.mimetype.includes("pdf") || fileType.endsWith('.pdf')) {
       console.log("🔄 Parsing PDF with Gemini...");
       return await geminiVisionParser.parsePDFWithVision(cvBuffer, cvFile.originalname);
@@ -1011,17 +1020,45 @@ const extractCVDataFromFile = async (cvFile, cvFilePath) => {
       console.log("🔄 Parsing image with Gemini...");
       return await geminiVisionParser.parseImageWithVision(cvBuffer, cvFile.mimetype, cvFile.originalname);
     } else if (cvFile.mimetype.includes("word") || fileType.endsWith('.docx') || fileType.endsWith('.doc')) {
-      console.log("🔄 Parsing DOCX with Gemini...");
-      const text = await extractTextFromDOCX(cvBuffer);
+      console.log("🔄 Parsing DOCX/DOC file with Gemini (using HTML conversion)...");
+      try {
+        const extractionResult = await extractTextFromDOCX(cvBuffer);
+        
+        console.log(`📝 Extracted ${extractionResult.text.length} characters from DOCX`);
+        console.log(`🔗 Has hyperlinks in HTML: ${extractionResult.hasLinks}`);
+        
+        if (extractionResult.hasLinks) {
+          console.log("✅ HTML conversion preserved hyperlinks for Gemini parsing");
+        }
+        
+        // Send HTML content to Gemini for better parsing (includes links)
+        // Modify your Gemini parser to handle HTML or strip tags as needed
+        return await geminiVisionParser.parseCVTextWithGemini(
+          extractionResult.text, 
+          extractionResult.html // Pass HTML as additional context if your parser supports it
+        );
+      } catch (docxError) {
+        console.error("❌ DOCX extraction failed:", docxError.message);
+        // Try alternative method for .doc files
+        if (fileType.endsWith('.doc')) {
+          console.log("🔄 Attempting to read .doc file as text...");
+          const text = fs.readFileSync(cvFilePath, 'utf8');
+          return await geminiVisionParser.parseCVTextWithGemini(text);
+        }
+        throw docxError;
+      }
+    } else if (cvFile.mimetype.includes("text") || fileType.endsWith('.txt')) {
+      console.log("🔄 Parsing text file with Gemini...");
+      const text = fs.readFileSync(cvFilePath, 'utf8');
       return await geminiVisionParser.parseCVTextWithGemini(text);
     } else {
-      console.log("🔄 Parsing text with Gemini...");
+      console.log("🔄 Unknown file type, attempting to parse as text...");
       const text = fs.readFileSync(cvFilePath, 'utf8');
       return await geminiVisionParser.parseCVTextWithGemini(text);
     }
   } catch (error) {
-    console.error("❌ Gemini parsing failed:", error.message);
-    throw error;
+    console.error("❌ File parsing failed:", error.message);
+    throw new Error(`Failed to parse ${cvFile.originalname}: ${error.message}`);
   }
 };
 
@@ -1269,6 +1306,55 @@ const extractTextFromXML = (xmlText) => {
     text += match[1] + ' ';
   }
   return text.trim();
+};
+
+/**
+ * Extract hyperlinks from DOCX HTML for better masking
+ */
+const extractLinksForMasking = (htmlContent) => {
+  try {
+    console.log("🔍 Extracting links from HTML for masking...");
+    
+    const links = [];
+    const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]*)"[^>]*>(.*?)<\/a>/gi;
+    let match;
+    
+    while ((match = linkRegex.exec(htmlContent)) !== null) {
+      const url = match[1];
+      const text = match[2].trim();
+      
+      // Categorize links
+      let type = 'other';
+      const urlLower = url.toLowerCase();
+      
+      if (urlLower.includes('linkedin.com') || urlLower.includes('linked.in')) {
+        type = 'linkedin';
+      } else if (urlLower.includes('github.com')) {
+        type = 'github';
+      } else if (urlLower.includes('portfolio') || urlLower.includes('website') || 
+                 urlLower.includes('http://') || urlLower.includes('https://')) {
+        type = 'portfolio';
+      } else if (urlLower.includes('twitter.com') || urlLower.includes('x.com')) {
+        type = 'twitter';
+      } else if (urlLower.includes('facebook.com')) {
+        type = 'facebook';
+      } else if (urlLower.includes('instagram.com')) {
+        type = 'instagram';
+      }
+      
+      links.push({
+        url: url,
+        text: text,
+        type: type
+      });
+    }
+    
+    console.log(`✅ Extracted ${links.length} links for masking consideration`);
+    return links;
+  } catch (error) {
+    console.error("❌ Link extraction error:", error);
+    return [];
+  }
 };
 
 /**
