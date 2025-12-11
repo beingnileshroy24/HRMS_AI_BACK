@@ -12,18 +12,18 @@ import os from 'os';
 // ============ MASKING HELPER FUNCTIONS ============
 
 /**
- * Mask contact details in extracted data
+ * Mask contact details in extracted data (updated to preserve professional links)
  */
-const applyContactDetailsMasking = (extractedData, extractedLinks = []) => {
+const applyContactDetailsMasking = (extractedData) => {
   console.log("🎭 Applying contact details masking...");
   
   if (!extractedData) return extractedData;
   
   const maskedData = JSON.parse(JSON.stringify(extractedData));
   
-  // Mask personal info
+  // Mask personal info only - keep professional links in their sections
   if (maskedData.personal_info) {
-    console.log("   Masking personal information...");
+    console.log("   Masking personal contact information only...");
     
     // Email masking
     if (maskedData.personal_info.email) {
@@ -49,36 +49,65 @@ const applyContactDetailsMasking = (extractedData, extractedLinks = []) => {
       console.log(`     Phone: ${phone} → ${maskedData.personal_info.phone}`);
     }
     
-    // Remove links that might be in personal_info
-    ['linkedin', 'portfolio', 'github', 'website', 'twitter', 'facebook', 'instagram'].forEach(social => {
+    // Remove only personal social links (LinkedIn, Portfolio, etc.)
+    // These should be in personal_info only
+    const personalSocialLinks = ['linkedin', 'portfolio', 'github', 'website', 'twitter', 'facebook', 'instagram'];
+    personalSocialLinks.forEach(social => {
       if (maskedData.personal_info[social]) {
-        console.log(`     ${social}: ${maskedData.personal_info[social]} → REMOVED`);
+        console.log(`     Personal ${social}: ${maskedData.personal_info[social]} → REMOVED`);
         delete maskedData.personal_info[social];
       }
     });
+    
+    // IMPORTANT: DO NOT touch certification URLs, project URLs, company URLs, etc.
+    // They are already in their proper sections (certifications[], projects[], experience[])
   }
   
-  // Also process any extracted links from the document
-  if (extractedLinks.length > 0) {
-    console.log("   Processing extracted document links for masking...");
-    extractedLinks.forEach(link => {
-      console.log(`     ${link.type}: ${link.url} → REMOVED`);
-    });
+  // Log what we're preserving
+  console.log("   Preserving professional links in their sections:");
+  if (maskedData.certifications && Array.isArray(maskedData.certifications)) {
+    const certsWithUrls = maskedData.certifications.filter(c => c && c.url).length;
+    if (certsWithUrls > 0) {
+      console.log(`     Certifications with URLs: ${certsWithUrls}`);
+    }
   }
   
-  console.log("✅ Contact details masked successfully");
+  if (maskedData.projects && Array.isArray(maskedData.projects)) {
+    const projectsWithUrls = maskedData.projects.filter(p => p && p.url).length;
+    if (projectsWithUrls > 0) {
+      console.log(`     Projects with URLs: ${projectsWithUrls}`);
+    }
+  }
+  
+  if (maskedData.experience && Array.isArray(maskedData.experience)) {
+    const experiencesWithUrls = maskedData.experience.filter(e => e && e.company_url).length;
+    if (experiencesWithUrls > 0) {
+      console.log(`     Experiences with company URLs: ${experiencesWithUrls}`);
+    }
+  }
+  
+  if (maskedData.education && Array.isArray(maskedData.education)) {
+    const educationWithUrls = maskedData.education.filter(e => e && e.institution_url).length;
+    if (educationWithUrls > 0) {
+      console.log(`     Education with institution URLs: ${educationWithUrls}`);
+    }
+  }
+  
+  console.log("✅ Contact details masked successfully (personal info only, professional links preserved)");
   return maskedData;
 };
 
 /**
- * Apply masking to template data
+ * Apply masking to template data (updated to preserve professional links)
  */
 const applyMaskingToTemplateData = (templateData) => {
   if (!templateData.personal) return templateData;
   
   const maskedData = { ...templateData };
   
-  // Apply masking to personal info
+  console.log("   Masking personal contact info in template data...");
+  
+  // Apply masking to personal info only
   if (maskedData.personal.email) {
     const email = maskedData.personal.email;
     const [localPart, domain] = email.split('@');
@@ -98,10 +127,64 @@ const applyMaskingToTemplateData = (templateData) => {
     }
   }
   
-  // Remove social links
+  // Remove personal social links only
   maskedData.personal.linkedin = '';
   maskedData.personal.portfolio = '';
+  maskedData.personal.github = '';
+  maskedData.personal.twitter = '';
+  maskedData.personal.facebook = '';
+  maskedData.personal.instagram = '';
   
+  // IMPORTANT: Preserve URLs in other sections
+  // Certifications may have URLs - keep them
+  if (maskedData.certifications && Array.isArray(maskedData.certifications)) {
+    maskedData.certifications = maskedData.certifications.map(cert => {
+      if (typeof cert === 'object' && cert.url) {
+        // Keep certification URL
+        console.log(`     Preserving certification URL: ${cert.name} → ${cert.url.substring(0, 50)}...`);
+        return { ...cert }; // Return copy with URL intact
+      }
+      return cert;
+    });
+  }
+  
+  // Projects may have URLs - keep them
+  if (maskedData.projects && Array.isArray(maskedData.projects)) {
+    maskedData.projects = maskedData.projects.map(project => {
+      if (typeof project === 'object' && project.url) {
+        // Keep project URL
+        console.log(`     Preserving project URL: ${project.name} → ${project.url.substring(0, 50)}...`);
+        return { ...project }; // Return copy with URL intact
+      }
+      return project;
+    });
+  }
+  
+  // Experience may have company URLs - keep them
+  if (maskedData.experiences && Array.isArray(maskedData.experiences)) {
+    maskedData.experiences = maskedData.experiences.map(exp => {
+      if (typeof exp === 'object' && exp.company_url) {
+        // Keep company URL
+        console.log(`     Preserving company URL: ${exp.company} → ${exp.company_url.substring(0, 50)}...`);
+        return { ...exp }; // Return copy with URL intact
+      }
+      return exp;
+    });
+  }
+  
+  // Education may have institution URLs - keep them
+  if (maskedData.education && Array.isArray(maskedData.education)) {
+    maskedData.education = maskedData.education.map(edu => {
+      if (typeof edu === 'object' && edu.institution_url) {
+        // Keep institution URL
+        console.log(`     Preserving institution URL: ${edu.institution} → ${edu.institution_url.substring(0, 50)}...`);
+        return { ...edu }; // Return copy with URL intact
+      }
+      return edu;
+    });
+  }
+  
+  console.log("✅ Template data masked (professional links preserved)");
   return maskedData;
 };
 
@@ -975,11 +1058,13 @@ const extractTextFromDOCX = async (docxBuffer) => {
     
     console.log(`✅ DOCX converted to HTML: ${htmlContent.length} chars, Plain text: ${plainText.length} chars`);
     
-    // Return both HTML and plain text
+    // Check for links
+    const hasLinks = htmlContent.includes('<a href=');
+    
     return {
       html: htmlContent,
       text: plainText,
-      hasLinks: htmlContent.includes('<a href='),
+      hasLinks: hasLinks,
       messages: result.messages // Any conversion warnings/messages
     };
   } catch (error) {
@@ -1005,6 +1090,8 @@ const extractTextFromDOCX = async (docxBuffer) => {
   }
 };
 
+// In templatePdfController.js, update the extractCVDataFromFile function:
+
 const extractCVDataFromFile = async (cvFile, cvFilePath) => {
   try {
     const cvBuffer = fs.readFileSync(cvFilePath);
@@ -1013,8 +1100,22 @@ const extractCVDataFromFile = async (cvFile, cvFilePath) => {
     console.log(`📄 Processing file type: ${fileType}, MIME: ${cvFile.mimetype}`);
     
     if (cvFile.mimetype.includes("pdf") || fileType.endsWith('.pdf')) {
-      console.log("🔄 Parsing PDF with Gemini...");
-      return await geminiVisionParser.parsePDFWithVision(cvBuffer, cvFile.originalname);
+      console.log("🔄 Parsing PDF with enhanced link extraction...");
+      
+      try {
+        // Use the enhanced PDF parsing with link extraction
+        return await geminiVisionParser.parsePDFWithVision(cvBuffer, cvFile.originalname);
+      } catch (visionError) {
+        console.error("❌ Enhanced PDF parsing failed, falling back to basic text:", visionError.message);
+        
+        // Fallback: Use basic text extraction
+        const extractionResult = await geminiVisionParser.extractTextAndLinksFromPDF(cvBuffer);
+        return await geminiVisionParser.parseCVTextWithGemini(
+          extractionResult.text, 
+          null, 
+          extractionResult.categorizedLinks
+        );
+      }
     } else if (cvFile.mimetype.includes("image") || 
                ['.jpg', '.jpeg', '.png'].some(ext => fileType.endsWith(ext))) {
       console.log("🔄 Parsing image with Gemini...");
@@ -1032,10 +1133,9 @@ const extractCVDataFromFile = async (cvFile, cvFilePath) => {
         }
         
         // Send HTML content to Gemini for better parsing (includes links)
-        // Modify your Gemini parser to handle HTML or strip tags as needed
         return await geminiVisionParser.parseCVTextWithGemini(
           extractionResult.text, 
-          extractionResult.html // Pass HTML as additional context if your parser supports it
+          extractionResult.html // Pass HTML for link extraction
         );
       } catch (docxError) {
         console.error("❌ DOCX extraction failed:", docxError.message);
